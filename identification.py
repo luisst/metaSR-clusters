@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 
-from generator.DB_wav_reader import read_feats_structure
+from generator.DB_wav_reader import read_feats_structure, read_feats_structure_aolme
 from generator.SR_Dataset import read_MFB_train as read_MFB
 from str2bool import str2bool
 import configure as c
@@ -23,10 +23,10 @@ parser.add_argument('--cp_num', type=int, default=100, help='Number of checkpoin
 # Episode setting
 parser.add_argument('--n_shot', type=int, default=1, help='Number of support set per class.')
 parser.add_argument('--n_query', type=int, default=5, help='Number of queries per class.')
-parser.add_argument('--nb_class_test', type=int, default=50, help='Number of way for test episode.')
-parser.add_argument('--nb_episode', type=int, default=1000, help='Number of episode.')
+parser.add_argument('--nb_class_test', type=int, default=3, help='Number of way for test episode.')
+parser.add_argument('--nb_episode', type=int, default=21, help='Number of episode.')
 # Test setting
-parser.add_argument('--enroll_length', type=int, default=500, help='Length of enrollment utterance. (500=5s)')
+parser.add_argument('--enroll_length', type=int, default=400, help='Length of enrollment utterance. (500=5s)')
 parser.add_argument('--test_length', type=int, default=100, help='Length of test utterance. (100=1s)')
 
 args = parser.parse_args()
@@ -46,7 +46,8 @@ def load_model(log_dir, cp_num, n_classes=5994):
 def get_DB(feat_dir):
     DB = pd.DataFrame()
     for idx, i in enumerate(feat_dir):
-        tmp_DB, _, _ = read_feats_structure(i, idx)
+        # tmp_DB, _, _ = read_feats_structure(i, idx)
+        tmp_DB, _, _ = read_feats_structure_aolme(i, idx)
         DB = DB.append(tmp_DB, ignore_index=True)
 
     return DB
@@ -56,6 +57,7 @@ def evaluation(test_generator, model, use_cuda):
     total_acc = []
     ans_episode, n_episode = 0, 0
     log_interval = 100
+    total_idx = 0
 
     # switch to test mode
     model.eval()
@@ -93,14 +95,16 @@ def evaluation(test_generator, model, use_cuda):
             n_episode += current_sample
             acc_episode = 100. * ans_episode / n_episode
 
-            if t % log_interval == 0:
-                stds = np.std(total_acc, axis=0)
-                ci95 = 1.96 * stds / np.sqrt(len(total_acc))
-                print(('Accuracy_test {}-shot ={:.2f}({:.2f})').format(args.n_shot, acc_episode, ci95))
+            # if t % log_interval == 0:
+            stds = np.std(total_acc, axis=0)
+            ci95 = 1.96 * stds / np.sqrt(len(total_acc))
+            print(('{}-Accuracy_test {}-shot ={:.2f}({:.2f})').format(total_idx, args.n_shot, acc_episode, ci95))
+            total_idx = total_idx + 1
 
 def main():
     # Load dataset
-    feat_list = [c.TRAIN_FEAT_DIR_1, c.TEST_FEAT_DIR]
+    # feat_list = [c.TRAIN_FEAT_DIR_1, c.TEST_FEAT_DIR]
+    feat_list = [c.TEST_FEAT_AOLME]
     test_DB = get_DB(feat_list)
     n_classes = 5994
 

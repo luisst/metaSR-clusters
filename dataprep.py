@@ -136,23 +136,23 @@ if __name__ == "__main__":
 	if not os.path.exists(args.save_path):
 		raise ValueError('Target directory does not exist.')
 
-	f = open('lists/fileparts.txt','r')
-	fileparts = f.readlines()
-	f.close()
+	# f = open('lists/fileparts.txt','r')
+	# fileparts = f.readlines()
+	# f.close()
 
-	f = open('lists/files.txt','r')
-	files = f.readlines()
-	f.close()
+	# f = open('lists/files.txt','r')
+	# files = f.readlines()
+	# f.close()
 
-	if args.download:
-		download(args,fileparts)
+	# if args.download:
+	# 	download(args,fileparts)
 
-	if args.extract:
-		concatenate(args, files)
-		extract(args)
-		#######################<<Here, files are extracted from zip file.
-		out = subprocess.call('mv %s/dev/aac/* %s/aac/ && rm -r %s/dev' %(args.save_path,args.save_path,args.save_path), shell=True)
-		out = subprocess.call('mv %s/aac %s/voxceleb2/dev/wav' %(args.save_path,args.save_path), shell=True)
+	# if args.extract:
+	concatenate(args, files)
+	extract(args)
+	#######################<<Here, files are extracted from zip file.
+	# out = subprocess.call('mv %s/dev/aac/* %s/aac/ && rm -r %s/dev' %(args.save_path,args.save_path,args.save_path), shell=True)
+	# out = subprocess.call('mv %s/aac %s/voxceleb2/dev/wav' %(args.save_path,args.save_path), shell=True)
 
-	if args.convert:
-		convert(args)
+	# if args.convert:
+	# 	convert(args)
