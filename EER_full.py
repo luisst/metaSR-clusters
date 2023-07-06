@@ -278,6 +278,23 @@ def enroll_per_utt_aolme(test_DB, model):
     return dict_embeddings
 
 
+def d_vector_queries_aolme(test_DB, model):
+    # Get enroll d-vector and test d-vector per utterance
+    dict_embeddings = {}
+    total_len = len(test_DB)
+    with torch.no_grad():
+        for i in range(len(test_DB)):
+            tmp_filename = test_DB['filename'][i]
+            enroll_embedding, _ = get_d_vector(tmp_filename, model)
+            key = os.sep.join(tmp_filename.split(os.sep)[-2:])  # ex) 'id10042/6D67SnCYY34/00001.pkl'
+            key = os.path.splitext(key)[0] + '.wav'  # ex) 'id10042/6D67SnCYY34/00001.wav'
+            dict_embeddings[key] = enroll_embedding
+            print("[%s/%s] Embedding for \"%s\" is saved" % (str(i).zfill(len(str(total_len))), total_len, key))
+
+    return dict_embeddings
+
+
+
 def enroll_per_utt(test_DB, model):
     # Get enroll d-vector and test d-vector per utterance
     dict_embeddings = {}

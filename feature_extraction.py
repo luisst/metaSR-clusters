@@ -49,7 +49,7 @@ def convert_wav_to_MFB_name(filename, mode):
     return output_foldername, output_filename
 
 
-def convert_wav_to_MFB_name_aolme(filename, mode):
+def convert_wav_to_MFB_name_aolme(filename, output_folder_path, mode):
     """
     Converts the wav dir (in DB folder) to feat dir(in feat folder)
     ex) input         : '.../voxceleb/voxceleb1/dev/wav/id10918/oT62hV9eoHo/00001.wav'
@@ -73,7 +73,7 @@ def convert_wav_to_MFB_name_aolme(filename, mode):
     
     root_folder = 'feat'
 
-    output_foldername = os.path.join(c.TEST_AUDIO_AOLME, root_folder, speaker_folder)
+    output_foldername = os.path.join(output_folder_path, root_folder, speaker_folder)
         
     output_filename = os.path.join(output_foldername, filename_only)
 
@@ -119,7 +119,7 @@ def extract_MFB(filename, mode):
             pickle.dump(feat_and_label, fp)
 
 
-def extract_MFB_aolme(filename, mode):
+def extract_MFB_aolme(filename, dataroot_dir, mode):
 
     sr, audio = sio.wavfile.read(filename)
     features, energies = fbank(audio, samplerate=c.SAMPLE_RATE, nfilt=c.FILTER_BANK, winlen=0.025, winfunc=np.hamming)
@@ -144,7 +144,7 @@ def extract_MFB_aolme(filename, mode):
         total_features = features
 
     speaker_folder = filename.split('/')[-2]
-    output_foldername, output_filename = convert_wav_to_MFB_name_aolme(filename, mode=mode)
+    output_foldername, output_filename = convert_wav_to_MFB_name_aolme(filename, dataroot_dir, mode=mode)
     speaker_label = speaker_folder # set label as a folder name (recommended). Convert this to speaker index when training
     feat_and_label = {'feat':total_features, 'label':speaker_label}
 
@@ -179,7 +179,7 @@ def feat_extraction(dataroot_dir, mode):
     count = 0
     
     for i in range(len(DB)):
-        extract_MFB_aolme(DB['filename'][i], mode=mode)
+        extract_MFB_aolme(DB['filename'][i], dataroot_dir, mode=mode)
         count = count + 1
         filename = DB['filename'][i]
         print("feature extraction (%s DB). step : %d, file : \"%s\"" %(mode, count, '/'.join(filename.split('/')[-3:])))
@@ -192,4 +192,4 @@ if __name__ == '__main__':
     # feat_extraction(dataroot_dir=c.TRAIN_AUDIO_VOX1, mode='train')
     # feat_extraction(dataroot_dir=c.TEST_AUDIO_VOX1, mode='test')
 
-    feat_extraction(dataroot_dir=c.TEST_AUDIO_AOLME, mode='test')
+    feat_extraction(dataroot_dir=c.CENTROID_AUDIO_AOLME, mode='test')
