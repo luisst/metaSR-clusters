@@ -19,8 +19,8 @@ TEST_FEAT_VOX1= save_path+'/voxceleb1/test/feat'
 TEST_AUDIO_AOLME='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/Groups4speakers/test/wav'
 TEST_FEAT_AOLME='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/Groups4speakers/test/feat'
 
-CENTROID_AUDIO_AOLME='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_beta/test/wav'
-CENTROID_FEAT_AOLME='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_beta/test/feat'
+CENTROID_AUDIO_AOLME='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_gamma_all_Irma/test/wav'
+CENTROID_FEAT_AOLME='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_gamma_all_Irma/test/feat'
 
 USE_LOGSCALE = True
 USE_NORM=  True

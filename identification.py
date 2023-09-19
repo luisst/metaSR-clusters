@@ -21,10 +21,10 @@ parser.add_argument('--gpu', type=int, default=0, help='GPU device number.')
 parser.add_argument('--n_folder', type=int, default=0, help='Number of folder.')
 parser.add_argument('--cp_num', type=int, default=100, help='Number of checkpoint.')
 # Episode setting
-parser.add_argument('--n_shot', type=int, default=1, help='Number of support set per class.')
-parser.add_argument('--n_query', type=int, default=5, help='Number of queries per class.')
+parser.add_argument('--n_shot', type=int, default=5, help='Number of support set per class.')
+parser.add_argument('--n_query', type=int, default=2, help='Number of queries per class.')
 parser.add_argument('--nb_class_test', type=int, default=3, help='Number of way for test episode.')
-parser.add_argument('--nb_episode', type=int, default=21, help='Number of episode.')
+parser.add_argument('--nb_episode', type=int, default=7, help='Number of episode.')
 # Test setting
 parser.add_argument('--enroll_length', type=int, default=400, help='Length of enrollment utterance. (500=5s)')
 parser.add_argument('--test_length', type=int, default=100, help='Length of test utterance. (100=1s)')
@@ -95,10 +95,12 @@ def evaluation(test_generator, model, use_cuda):
             n_episode += current_sample
             acc_episode = 100. * ans_episode / n_episode
 
+            print(f'\n{t}\tans_episode: {ans_episode} | temp_ans: {temp_ans}\tn_episode: {n_episode} | current_sample: {current_sample}')
+
             # if t % log_interval == 0:
             stds = np.std(total_acc, axis=0)
             ci95 = 1.96 * stds / np.sqrt(len(total_acc))
-            print(('{}-Accuracy_test {}-shot ={:.2f}({:.2f})').format(total_idx, args.n_shot, acc_episode, ci95))
+            print(('{}-Accuracy_test {}-shot ={:.2f}({:.2f})\n').format(total_idx, args.n_shot, acc_episode, ci95))
             total_idx = total_idx + 1
 
 def main():

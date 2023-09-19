@@ -8,9 +8,12 @@ import pandas as pd
 import seaborn as sns
 # %matplotlib inline
 from sklearn.manifold import TSNE
+from sklearn.semi_supervised import LabelPropagation
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from numpy import concatenate
 import time
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import re
 import constants
 
@@ -98,6 +101,33 @@ def main_aolme():
     
     data_subset = df.values
 
+    X_train, X_test, y_train, y_test = train_test_split(data_subset, y_lbls, test_size=0.50, random_state=1, stratify=y_lbls)
+
+    # create the training dataset input
+    X_train_mixed = concatenate((X_train, X_test))
+
+    # create "no label" for unlabeled data
+    nolabel = [-1 for _ in range(len(y_test))]
+    y_train_mixed = concatenate((y_train, nolabel))
+
+    y_train_mixed_gt = concatenate((y_train, y_test))
+
+    label_prop_model = LabelPropagation(kernel='rbf', gamma=100)
+
+    # fit model on training dataset
+    label_prop_model.fit(X_train_mixed, y_train_mixed)
+    # get labels for entire training dataset data
+    tran_labels = label_prop_model.transduction_
+
+    number_unlabeled = np.count_nonzero(tran_labels == -1)
+    print(f'number of unlabeled data: {number_unlabeled}')
+
+    # calculate score for test set
+    lp_score = accuracy_score(y_train_mixed_gt, tran_labels)
+    # summarize score
+    print('Accuracy: %.3f' % (lp_score*100))
+
+    # -----------------------------------------------------------------------------
     time_start = time.time()
     tsne = TSNE(n_components=2, verbose=1, perplexity=15, n_iter=900)
     # tsne = TSNE(n_components=2, verbose=1)
@@ -109,36 +139,41 @@ def main_aolme():
     df['tsne-2d-one'] = tsne_results[:,0]
     df['tsne-2d-two'] = tsne_results[:,1]
 
-    # # Define colors:
-    # colors = {
-    #     'noise': 'black',
-    #     'source1': 'red',
-    #     'source2': 'blue',
-    # }
+    #plt.figure(figsize=(16,10))
+    sns.scatterplot(
+        x="tsne-2d-one", y="tsne-2d-two",
+        hue="y",
+        palette=sns.color_palette("bright", 6),
+        data=df,
+        legend="full",
+        alpha=1.0
+    )
 
-    # dot_colors = [colors[name] for name in names]
-    # num_entries = df.shape[0]
-    # for idx_name in range(0, num_entries):
-    #     # Add label into the dataframe in the code
-    #     if 
+    # Get the current legend
+    legend = plt.gca().get_legend()
 
-    # xkcd_colors = plt.xkcd_palette(random.sample(list(plt.xkcd_rgb.keys()), len(string_list)))
+    # Update legend labels using the dictionary
+    for text in legend.get_texts():
+        original_label = int(text.get_text())
+        if original_label in numbers_to_speakers_dict:
+            new_label = numbers_to_speakers_dict[original_label]
+            count_of_speaker = dict_speaker_stats[new_label]
+            current_legend_text = f'{new_label} - {count_of_speaker}'
+            text.set_text(current_legend_text)
 
-    # # Dictionary to store strings and colors
-    # string_color_dict = {}
+    plt.show()
 
-    # # Iterate through the list of strings
-    # for string in string_list:
-    #     if string not in string_color_dict:
-    #         # Find an unused color from the xkcd_colors list
-    #         for color in xkcd_colors:
-    #             if color not in string_color_dict.values():
-    #                 string_color_dict[string] = color
-    #                 break
+    #--------------------------------------------------------------------------------
 
-    # # Print the resulting dictionary
-    # for string, color in string_color_dict.items():
-    #     print(f"{string}: {color}")
+    time_start = time.time()
+    tsne = TSNE(n_components=2, verbose=1, perplexity=15, n_iter=900)
+    tsne_results = tsne.fit_transform(X_train_mixed)
+
+    print('t-sne done! time elapsed: {} seconds'.format(time.time()-time_start))
+
+    df['y'] = tran_labels
+    df['tsne-2d-one'] = tsne_results[:,0]
+    df['tsne-2d-two'] = tsne_results[:,1]
 
     plt.figure(figsize=(16,10))
     sns.scatterplot(
