@@ -82,7 +82,7 @@ def main_aolme():
     for emb_key, emb_data in dict_embeddings.items():
         df.loc[i] = emb_data.cpu().numpy()[0,:]
         speakerID_clusters = extract_label(emb_key)
-        print(f'{emb_key} - {speakerID_clusters}')
+        # print(f'{emb_key} - {speakerID_clusters}')
 
         # current_speakerid = emb_key.split('/')[0]
         speaker_lbls.append(speakerID_clusters)
@@ -173,7 +173,7 @@ def main_aolme():
 def get_DB_aolme(feat_dir):
     DB = pd.DataFrame()
     for idx, i in enumerate(feat_dir):
-        print(f'This is the ith in get_DB" {i}')
+        # print(f'This is the ith in get_DB" {i}')
         tmp_DB, _, _ = read_feats_structure_aolme(i, idx)
         DB = DB.append(tmp_DB, ignore_index=True)
 
@@ -236,12 +236,12 @@ def d_vector_queries_aolme(test_DB, model):
         for i in range(len(test_DB)):
             tmp_filename = test_DB['filename'][i]
             tmp_dict_entry = test_DB['filename']
-            print(f'test_db: {tmp_dict_entry}')
+            # print(f'test_db: {tmp_dict_entry}')
             enroll_embedding, _ = get_d_vector(tmp_filename, model)
             key = os.sep.join(tmp_filename.split(os.sep)[-2:])  # ex) 'id10042/6D67SnCYY34/00001.pkl'
             key = os.path.splitext(key)[0] + '.wav'  # ex) 'id10042/6D67SnCYY34/00001.wav'
             dict_embeddings[key] = enroll_embedding
-            print("[%s/%s] Embedding for \"%s\" is saved" % (str(i).zfill(len(str(total_len))), total_len, key))
+            # print("[%s/%s] Embedding for \"%s\" is saved" % (str(i).zfill(len(str(total_len))), total_len, key))
 
     return dict_embeddings
 

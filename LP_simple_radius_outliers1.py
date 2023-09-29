@@ -32,6 +32,7 @@ from model.model import background_resnet
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 
+plt.rcParams.update({'font.size': 16})  # You can adjust the font size (16 in this example)
 
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 
@@ -139,7 +140,7 @@ def main_aolme():
     
 
     # parameter of percentage of test 
-    percentage_test = 0.2
+    percentage_test = 0.6
 
     # Calculate the total number of samples across all labels
     total_samples = sum(len(samples) for samples in dict_embeddings.values())
@@ -366,8 +367,11 @@ def main_aolme():
     y_labels_pred = []
     # Assign the label based on the index
     for row_idx in range(cos_sim_matrix.size(0)):
-        current_new_label = y_prototype[max_indices[row_idx]]
-        y_labels_pred.append(current_new_label)
+        if max_values[row_idx] > 0.7:
+            current_new_label = y_prototype[max_indices[row_idx]]
+            y_labels_pred.append(current_new_label)
+        else:
+            y_labels_pred.append(99)
     
     y_labels_pred = np.array(y_labels_pred)
     print(y_labels_pred)
@@ -387,6 +391,8 @@ def main_aolme():
     y_test_pred = np.zeros_like(y_labels_pred) 
     for idx, current_label in enumerate(y_labels_pred):
         if current_label == y_test[idx]:
+            y_test_pred[idx] = current_label
+        elif current_label == 99:
             y_test_pred[idx] = current_label
         else:
             y_test_pred[idx] = current_label + 10 
@@ -408,13 +414,23 @@ def main_aolme():
     df_mixed['tsne-2d-one'] = tsne_results[:,0]
     df_mixed['tsne-2d-two'] = tsne_results[:,1]
 
-    marker_sizes = [200 if label > 29 else 60 for label in df_mixed['y']]
-    # marker_styles = ['s' if label < 29 else 'o' for label in df_mixed['y']]
+    # marker_sizes = [200 if (30<=label<=40) else 60 for label in df_mixed['y']]
+
+    marker_sizes = []
+    for label in df_mixed['y']:
+        if (30<=label<=40):
+            marker_sizes.append(200)
+        elif label == 99:
+            marker_sizes.append(80)
+        else:
+            marker_sizes.append(60)
 
     marker_styles = {} 
     for current_label_y in set(Mixed_y_labels):
-        if current_label_y >= 30:
+        if 30 <= current_label_y <= 40:
             marker_styles[current_label_y] = 's'
+        elif current_label_y == 99:
+            marker_styles[current_label_y] = '^'
         else:
             marker_styles[current_label_y] = 'o'
 
@@ -443,6 +459,7 @@ def main_aolme():
         33: 'green',
         34: 'orange',
         35: 'purple',
+        99: 'black'
     }
 
 

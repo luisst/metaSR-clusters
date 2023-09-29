@@ -11,7 +11,8 @@ from sklearn.manifold import TSNE
 from sklearn.semi_supervised import LabelPropagation
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-from sklearn.cluster import DBSCAN
+import hdbscan
+
 
 from scipy import stats
 from numpy import concatenate
@@ -32,6 +33,7 @@ from model.model import background_resnet
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 
+plt.rcParams.update({'font.size': 16})  # You can adjust the font size (16 in this example)
 
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 
@@ -119,6 +121,45 @@ def convert_dict_to_tensor(dict_data_input):
 
     return X_data, y_data
 
+
+def plot(X, labels, probabilities=None, parameters=None, ground_truth=False, ax=None):
+    if ax is None:
+        _, ax = plt.subplots(figsize=(10, 4))
+    labels = labels if labels is not None else np.ones(X.shape[0])
+    probabilities = probabilities if probabilities is not None else np.ones(X.shape[0])
+    # Black removed and is used for noise instead.
+    unique_labels = set(labels)
+    colors = [plt.cm.Spectral(each) for each in np.linspace(0, 1, len(unique_labels))]
+    # The probability of a point belonging to its labeled cluster determines
+    # the size of its marker
+    proba_map = {idx: probabilities[idx] for idx in range(len(labels))}
+    for k, col in zip(unique_labels, colors):
+        if k == -1:
+            # Black used for noise.
+            col = [0, 0, 0, 1]
+
+        class_index = np.where(labels == k)[0]
+        print(f'label: {k} \tcolor: {col} \tlen:{len(class_index)}')
+        for ci in class_index:
+            ax.plot(
+                X[ci, 0],
+                X[ci, 1],
+                "x" if k == -1 else "o",
+                markerfacecolor=tuple(col),
+                markeredgecolor="k",
+                markersize=4 if k == -1 else 1 + 5 * proba_map[ci],
+            )
+    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+    preamble = "True" if ground_truth else "Estimated"
+    title = f"{preamble} number of clusters: {n_clusters_}"
+    if parameters is not None:
+        parameters_str = ", ".join(f"{k}={v}" for k, v in parameters.items())
+        title += f" | {parameters_str}"
+    ax.set_title(title)
+    ax.legend()
+    plt.tight_layout()
+
+
 def main_aolme():
     test_feat_dir = [constants.CENTROID_FEAT_AOLME]
     test_db = get_DB_aolme(test_feat_dir)
@@ -139,7 +180,7 @@ def main_aolme():
     
 
     # parameter of percentage of test 
-    percentage_test = 0.2
+    percentage_test = 0.6
 
     # Calculate the total number of samples across all labels
     total_samples = sum(len(samples) for samples in dict_embeddings.values())
@@ -200,311 +241,155 @@ def main_aolme():
     print("Shape of concatenated tensor:", prototype.shape)
 
     #####################################################################
-    # # TODO: use norm or not?
-    # angle_e = F.linear(X_test, F.normalize(prototype))
-    # y_test_tensor = torch.tensor(y_test, dtype=torch.long).cuda()
-
-    # # calculate accuracy of predictions in the current episode
-    # temp_angle = torch.max(angle_e, 1)[1].long()
-    # temp_view_angle = temp_angle.view(y_test_tensor.size())
-
-    # temp_ans = (torch.max(angle_e, 1)[1].long().view(y_test_tensor.size()) == y_test_tensor).sum().item()
-    # current_acc = temp_ans/angle_e.size(0) * 100
-    #####################################################################
-
-    feat_cols = [ 'ft'+str(i) for i in range(0,256) ]
-
-    ## Convert tensor dict into numpy array for tsne
-    df_prototypes = pd.DataFrame(columns=feat_cols)
-    i = 0
-    prototype_labels = []
-    ############ >>>>>>>>>>>>>>>>>>>>>>>>>> should be dict_train_data
-    for emb_key, emb_data in dict_train_data.items():
-        df_prototypes.loc[i] = emb_data.cpu().numpy()[0,:]
-
-        prototype_labels.append(emb_key)
-        i = i + 1
-    prototype_data = np.array(df_prototypes.values)
-
-    d = dict([(y,x+1) for x,y in enumerate(sorted(set(prototype_labels)))])
-    y_prototype = [d[x] for x in prototype_labels]
-    y_prototype = np.array(y_prototype)
 
     ## Convert test tensor into numpy array
     train_All_data = X_train.cpu().numpy()
-
-
-    ### ------------------------------ Remove outliers Isolation Forest ----------------------------
-    # Convert the PyTorch tensor to a NumPy array
-    data_np = train_All_data
-
-    # Create an Isolation Forest model
-    clf = IsolationForest(contamination=0.05)  # Adjust the contamination parameter
-
-    # Fit the model on the data
-    clf.fit(data_np)
-
-    # Predict outliers
-    outliers = clf.predict(data_np)
-
-    # You can also get the indices of the outlier samples
-    outlier_indices = np.where(outliers == -1)
-    print("Outlier Indices:", outlier_indices[0])   
-
-    filtered_data_np = data_np[outliers == 1]  # Keep inliers only
-    filtered_tensor = torch.from_numpy(filtered_data_np)
-
-    # Print the new tensor without outliers
-    print("Original Data Shape:", train_All_data.shape)
-    print("Filtered Data Shape:", filtered_tensor.shape)
-
-    ### ------------------------------ Remove outliers IQR ---------------------------- 
-
-    # Calculate the quartiles (Q1 and Q3) for each feature
-    Q1 = np.percentile(data_np, 25, axis=0)
-    Q3 = np.percentile(data_np, 75, axis=0)
-
-    # Calculate the interquartile range (IQR) for each feature
-    IQR = Q3 - Q1
-
-    # Set a threshold to identify outliers
-    threshold = 1.5  # Adjust the threshold as needed
-
-    # Identify outliers for each feature
-    outliers = ((data_np < Q1 - threshold * IQR) | (data_np > Q3 + threshold * IQR))
-
-    # Combine outlier flags across all features
-    outliers_combined = np.any(outliers, axis=1)
-
-    # Convert the combined outlier flags to a PyTorch tensor
-    outliers_tensor = torch.from_numpy(outliers_combined)
-
-    # Print the indices of the outlier samples
-    outlier_indices = torch.nonzero(outliers_tensor).squeeze()
-    print("Outlier Indices:", outlier_indices)
-
-    # Remove outliers and create a new tensor
-    filtered_data_np = data_np[~outliers_combined]  # Keep inliers only
-    filtered_tensor = torch.from_numpy(filtered_data_np)
-
-    # Print the new tensor without outliers
-    print("Original Data Shape:", data_np.shape)
-    print("Filtered Data Shape:", filtered_tensor.shape)
-
-    # number_unlabeled = np.count_nonzero(tran_labels == -1)
-    # print(f'number of unlabeled data: {number_unlabeled}')
-
-    # # calculate score for test set
-    # lp_score = accuracy_score(y_train_mixed_gt, tran_labels)
-    # # summarize score
-    # print('Accuracy: %.3f' % (lp_score*100))
-
-
-    ### ------------------------------ Remove outliers Z-score ---------------------------- 
-    # Calculate the Z-scores for each feature
-    z_scores = stats.zscore(data_np, axis=0)
-
-    # Set a threshold to identify outliers (e.g., 2 standard deviations)
-    threshold = 2.0  # Adjust the threshold as needed
-
-    # Identify outliers for each feature
-    outliers = np.abs(z_scores) > threshold
-
-    # Combine outlier flags across all features
-    outliers_combined = np.any(outliers, axis=1)
-
-    # Convert the combined outlier flags to a PyTorch tensor
-    outliers_tensor = torch.from_numpy(outliers_combined)
-
-    # Print the indices of the outlier samples
-    outlier_indices = torch.nonzero(outliers_tensor).squeeze()
-    print("Outlier Indices:", outlier_indices)
-
-    # Remove outliers and create a new tensor
-    filtered_data_np = data_np[~outliers_combined]  # Keep inliers only
-    filtered_tensor = torch.from_numpy(filtered_data_np)
-
-    # Print the new tensor without outliers
-    print("Original Data Shape:", data_np.shape)
-    print("Filtered Data Shape:", filtered_tensor.shape)
-
-    
-    ### ------------------------------ Remove outliers DB-SCAN ---------------------------- 
-    # Create a DBSCAN model
-    dbscan = DBSCAN(eps=5.0, min_samples=3)  # Adjust the parameters as needed
-
-    # Fit the DBSCAN model on the data
-    labels = dbscan.fit_predict(data_np)
-
-    # You can also get the indices of the outlier samples
-    outlier_indices = np.where(labels == -1)
-    print("Outlier Indices:", outlier_indices)   
-
-    filtered_data_np = data_np[labels == 1]  # Keep inliers only
-    filtered_tensor = torch.from_numpy(filtered_data_np)
-
-    # Print the new tensor without outliers
-    print("Original Data Shape:", train_All_data.shape)
-    print("Filtered Data Shape:", filtered_tensor.shape)
-
-
-    #### ---------------------------(A) - Simple Approach --------------------------
-
-    # For each sample in the Test Set, calculate the distance to all centroids
-    prototype_tensor = torch.tensor(prototype_data, dtype=torch.float32).cuda()
-
-    cos_sim_matrix = F.linear(F.normalize(X_test), F.normalize(prototype_tensor))
-
-    # for loop each row, print it as dict + std_dev
-    for row_index, row in enumerate(cos_sim_matrix):
-        std_dev_row = np.std(row.cpu().numpy())
-        print(f'{row_index}-{row}-{std_dev_row}')
-
-    # calculate accuracy of predictions in the current episode
-    max_values, max_indices = torch.max(cos_sim_matrix, 1)
-
-    y_labels_pred = []
-    # Assign the label based on the index
-    for row_idx in range(cos_sim_matrix.size(0)):
-        current_new_label = y_prototype[max_indices[row_idx]]
-        y_labels_pred.append(current_new_label)
-    
-    y_labels_pred = np.array(y_labels_pred)
-    print(y_labels_pred)
-
-    ### -----------------------------------------------------------------------------
-
     test_All_data = X_test.cpu().numpy()
-    # Function to map labels [1 ~ 6] -> prototype labels
-    for idx, current_label in enumerate(y_prototype):
-        y_prototype[idx] = current_label + 30 
 
-    # Function to map labels [1 ~ 6] -> train labels
-    for idx, current_label in enumerate(y_train):
-        y_train[idx] = current_label + 20 
+    # # Function to map labels [1 ~ 6] -> train labels
+    # for idx, current_label in enumerate(y_train):
+    #     y_train[idx] = current_label + 20 
 
-    # Function to map labels [1 ~ 6] -> pred labels
-    y_test_pred = np.zeros_like(y_labels_pred) 
-    for idx, current_label in enumerate(y_labels_pred):
-        if current_label == y_test[idx]:
-            y_test_pred[idx] = current_label
-        else:
-            y_test_pred[idx] = current_label + 10 
 
     ## Plot A: join prototypes and test labels
-    Mixed_X_data = np.concatenate((prototype_data, test_All_data), axis=0)
-    Mixed_y_labels = np.concatenate((y_prototype, y_test_pred), axis=0)
+    Mixed_X_data = np.concatenate((train_All_data, test_All_data), axis=0)
+    Mixed_y_labels = np.concatenate((y_train, y_test), axis=0)
 
-
-    time_start = time.time()
     tsne = TSNE(n_components=2, verbose=1, perplexity=15, n_iter=900)
     tsne_results = tsne.fit_transform(Mixed_X_data)
+    x_tsne_2d = np.array(list(zip(tsne_results[:,0], tsne_results[:,1])))
 
-    print('t-sne done! time elapsed: {} seconds'.format(time.time()-time_start))
+    plot(x_tsne_2d, labels=Mixed_y_labels, ground_truth=True)
 
-    df_mixed = pd.DataFrame()
+    hdb = hdbscan.HDBSCAN(min_cluster_size=3).fit(Mixed_X_data)
 
-    df_mixed['y'] = Mixed_y_labels
-    df_mixed['tsne-2d-one'] = tsne_results[:,0]
-    df_mixed['tsne-2d-two'] = tsne_results[:,1]
+    # tsne = TSNE(n_components=2, verbose=1, perplexity=15, n_iter=900)
+    # tsne_results = tsne.fit_transform(Mixed_X_data)
+    # x_tsne_2d = np.array(list(zip(tsne_results[:,0], tsne_results[:,1])))
 
-    marker_sizes = [200 if label > 29 else 60 for label in df_mixed['y']]
-    # marker_styles = ['s' if label < 29 else 'o' for label in df_mixed['y']]
-
-    marker_styles = {} 
-    for current_label_y in set(Mixed_y_labels):
-        if current_label_y >= 30:
-            marker_styles[current_label_y] = 's'
-        else:
-            marker_styles[current_label_y] = 'o'
-
-    # Define a custom color mapping for each label
-    # 0~9: Good Predictions   |   10~19: Bad Predictions
-    # 20~29: Enroll (train)   |   30~39: Prototypes
-    label_colors = {
-        1: 'red',
-        2: 'blue',
-        3: 'green',
-        4: 'orange',
-        5: 'purple',
-        6: 'brown',
-        11: 'red',
-        12: 'blue',
-        13: 'green',
-        14: 'orange',
-        15: 'purple',
-        21: 'red',
-        22: 'blue',
-        23: 'green',
-        24: 'orange',
-        25: 'purple',
-        31: 'red',
-        32: 'blue',
-        33: 'green',
-        34: 'orange',
-        35: 'purple',
-    }
-
-
-    # To print the centroids!
-    # alpha_values = [0.3 if label in [21,22,23,24,25] else 1.0 for label in df_mixed['y']]
-
-    alpha_values = []
-    for label in df_mixed['y']:
-        if 10<label<20:
-            alpha_values.append(0.3)
-        else:
-            alpha_values.append(1.0)
-
-    plt.figure(figsize=(20,14))
-    scatter = sns.scatterplot(
-        x="tsne-2d-one", y="tsne-2d-two",
-        hue="y",
-        palette=label_colors,
-        data=df_mixed,
-        legend="full",
-        alpha=alpha_values,
-        style="y",
-        s=marker_sizes,
-        markers=marker_styles,
-    )
-
-    # Get the current legend handles and labels
-    handles, labels = scatter.get_legend_handles_labels()
-
-    # Define a list of labels to remove from the legend
-    labels_to_remove = [x for x in set(df_mixed["y"]) if x > 10]
-    labels_to_remove = [str(x) for x in labels_to_remove]
-
-    # Create a new legend without the labels to remove
-    new_handles = [h for i, h in enumerate(handles) if labels[i] not in labels_to_remove]
-    new_labels = [l for l in labels if l not in labels_to_remove]
-
-    # Update the legend with the new handles and labels
-    scatter.legend(new_handles, new_labels, title="Total Numbers Dataset")
-
-
-    # Get the current legend
-    legend = plt.gca().get_legend()
-
-    numbers_to_speakers_dict = {value: key for key, value in d.items()}
-    dict_speaker_stats = count_elements_and_create_dictionary(Total_labels_start)
-
-    # Update legend labels using the dictionary
-    for text in legend.get_texts():
-        original_label = int(text.get_text())
-        if original_label < 10:
-            if original_label in numbers_to_speakers_dict:
-                new_label = numbers_to_speakers_dict[original_label]
-                count_of_speaker = dict_speaker_stats[new_label]
-                current_legend_text = f'Total: {new_label} - {count_of_speaker}'
-                text.set_text(current_legend_text)
-
+    plot(x_tsne_2d, hdb.labels_, hdb.probabilities_)
     plt.show()
 
-    tot_end = time.time()
+    # time_start = time.time()
+    # tsne = TSNE(n_components=2, verbose=1, perplexity=15, n_iter=900)
+    # tsne_results = tsne.fit_transform(Mixed_X_data)
 
-    print("total elapsed time : %0.1fs" % (tot_end - tot_start))
+    # print('t-sne done! time elapsed: {} seconds'.format(time.time()-time_start))
+
+    # df_mixed = pd.DataFrame()
+
+    # df_mixed['y'] = Mixed_y_labels
+    # df_mixed['tsne-2d-one'] = tsne_results[:,0]
+    # df_mixed['tsne-2d-two'] = tsne_results[:,1]
+
+    # # marker_sizes = [200 if (30<=label<=40) else 60 for label in df_mixed['y']]
+
+    # marker_sizes = []
+    # for label in df_mixed['y']:
+    #     if (30<=label<=40):
+    #         marker_sizes.append(200)
+    #     elif label == 99:
+    #         marker_sizes.append(80)
+    #     else:
+    #         marker_sizes.append(60)
+
+    # marker_styles = {} 
+    # for current_label_y in set(Mixed_y_labels):
+    #     if 30 <= current_label_y <= 40:
+    #         marker_styles[current_label_y] = 's'
+    #     elif current_label_y == 99:
+    #         marker_styles[current_label_y] = '^'
+    #     else:
+    #         marker_styles[current_label_y] = 'o'
+
+    # # Define a custom color mapping for each label
+    # # 0~9: Good Predictions   |   10~19: Bad Predictions
+    # # 20~29: Enroll (train)   |   30~39: Prototypes
+    # label_colors = {
+    #     1: 'red',
+    #     2: 'blue',
+    #     3: 'green',
+    #     4: 'orange',
+    #     5: 'purple',
+    #     6: 'brown',
+    #     11: 'red',
+    #     12: 'blue',
+    #     13: 'green',
+    #     14: 'orange',
+    #     15: 'purple',
+    #     21: 'red',
+    #     22: 'blue',
+    #     23: 'green',
+    #     24: 'orange',
+    #     25: 'purple',
+    #     31: 'red',
+    #     32: 'blue',
+    #     33: 'green',
+    #     34: 'orange',
+    #     35: 'purple',
+    #     99: 'black'
+    # }
+
+
+    # # To print the centroids!
+    # # alpha_values = [0.3 if label in [21,22,23,24,25] else 1.0 for label in df_mixed['y']]
+
+    # alpha_values = []
+    # for label in df_mixed['y']:
+    #     if 10<label<20:
+    #         alpha_values.append(0.3)
+    #     else:
+    #         alpha_values.append(1.0)
+
+    # plt.figure(figsize=(20,14))
+    # scatter = sns.scatterplot(
+    #     x="tsne-2d-one", y="tsne-2d-two",
+    #     hue="y",
+    #     palette=label_colors,
+    #     data=df_mixed,
+    #     legend="full",
+    #     alpha=alpha_values,
+    #     style="y",
+    #     s=marker_sizes,
+    #     markers=marker_styles,
+    # )
+
+    # # Get the current legend handles and labels
+    # handles, labels = scatter.get_legend_handles_labels()
+
+    # # Define a list of labels to remove from the legend
+    # labels_to_remove = [x for x in set(df_mixed["y"]) if x > 10]
+    # labels_to_remove = [str(x) for x in labels_to_remove]
+
+    # # Create a new legend without the labels to remove
+    # new_handles = [h for i, h in enumerate(handles) if labels[i] not in labels_to_remove]
+    # new_labels = [l for l in labels if l not in labels_to_remove]
+
+    # # Update the legend with the new handles and labels
+    # scatter.legend(new_handles, new_labels, title="Total Numbers Dataset")
+
+
+    # # Get the current legend
+    # legend = plt.gca().get_legend()
+
+    # numbers_to_speakers_dict = {value: key for key, value in d.items()}
+    # dict_speaker_stats = count_elements_and_create_dictionary(Total_labels_start)
+
+    # # Update legend labels using the dictionary
+    # for text in legend.get_texts():
+    #     original_label = int(text.get_text())
+    #     if original_label < 10:
+    #         if original_label in numbers_to_speakers_dict:
+    #             new_label = numbers_to_speakers_dict[original_label]
+    #             count_of_speaker = dict_speaker_stats[new_label]
+    #             current_legend_text = f'Total: {new_label} - {count_of_speaker}'
+    #             text.set_text(current_legend_text)
+
+    # plt.show()
+
+    # tot_end = time.time()
+
+    # print("total elapsed time : %0.1fs" % (tot_end - tot_start))
     #--------------------------------------------------------------------------------
 
 
