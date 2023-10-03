@@ -20,7 +20,7 @@ def plot_styles(df_mixed, speakers_to_int_dict):
     for label in df_mixed['y']:
         if (30<=label<=40):
             marker_sizes.append(200)
-        elif label == 99:
+        elif label == -10:
             marker_sizes.append(80)
         else:
             marker_sizes.append(60)
@@ -29,7 +29,7 @@ def plot_styles(df_mixed, speakers_to_int_dict):
     for current_label_y in set(df_mixed['y']):
         if 30 <= current_label_y <= 40:
             marker_styles[current_label_y] = 's'
-        elif current_label_y == 99:
+        elif current_label_y == -10:
             marker_styles[current_label_y] = '^'
         else:
             marker_styles[current_label_y] = 'o'
@@ -59,7 +59,7 @@ def plot_styles(df_mixed, speakers_to_int_dict):
         33: 'green',
         34: 'orange',
         35: 'purple',
-        99: 'black'
+        -10: 'black'
     }
 
     # To print the centroids!
@@ -214,6 +214,9 @@ def convert_dict_to_tensor(dict_data_input):
     X_data = torch.cat(data_list, dim=0)
 
     speaker_labels_dict = dict([(y,x+1) for x,y in enumerate(sorted(set(labels_list)))])
+    if 'noises' in speaker_labels_dict.keys():
+        speaker_labels_dict['noises'] = -10
+
     y_lbls = [speaker_labels_dict[x] for x in labels_list]
     y_data = np.array(y_lbls)
 
@@ -239,7 +242,7 @@ def cos_sim_filter(X_test, prototype_tensor, prototypes_labels, th=0.6, verbose=
             current_new_label = prototypes_labels[max_indices[row_idx]]
             y_labels_pred.append(current_new_label)
         else:
-            y_labels_pred.append(99)
+            y_labels_pred.append(-1)
     
     y_labels_pred = np.array(y_labels_pred)
     return y_labels_pred
@@ -317,6 +320,10 @@ def generate_prototype(x_train, y_train, verbose=False):
     # Get the number of unique labels using set
     unique_labels = sorted(list(set(y_train)))
 
+    # If noise is present, delete it
+    if -1 in unique_labels:
+        unique_labels.remove(-1)
+
     k = len(unique_labels)  # Total unique labels
 
     # Initialize tensors to store means and counts
@@ -373,36 +380,108 @@ def gen_tsne(Mixed_X_data, Mixed_y_labels):
     return df_mixed
 
 
-def assign_labels(data_alpha_1, data_alpha_low, data_prototypes = None):
+def assign_labels_prediction(gt_labels, pred_labels, 
+                  prototypes_labels = None):
 
-    alpha_1_labels = data_alpha_1[1] 
-    alpha_low_labels = data_alpha_low[1] 
 
-    if data_prototypes != 'None':
+    if prototypes_labels is not None:
         # Function to map labels [1 ~ 6] -> prototype labels
-        for idx, current_label in enumerate(data_prototypes[0]):
-            data_prototypes[0][idx] = current_label + 30 
-
-    # Function to map labels [1 ~ 6] -> train labels
-    for idx, current_label in enumerate(alpha_low_labels):
-        alpha_low_labels[idx] = current_label + 20 
+        for idx, current_label in enumerate(prototypes_labels):
+            prototypes_labels[idx] = current_label + 30 
 
     # Function to map labels [1 ~ 6] -> pred labels
-    y_test_pred = np.zeros_like(alpha_1_labels) 
-    for idx, current_label in enumerate(alpha_1_labels):
-        if current_label == alpha_1_labels[idx]:
+    y_test_pred = np.zeros_like(gt_labels) 
+    for idx, current_label in enumerate(gt_labels):
+        if current_label == pred_labels[idx]:
             y_test_pred[idx] = current_label
-        elif current_label == 99:
+        elif current_label == 9:
             y_test_pred[idx] = current_label
         else:
-            y_test_pred[idx] = current_label + 10 
+            # Failed prediction
+            y_test_pred[idx] = current_label + 20 
 
 
-    if data_prototypes != 'None':
-        Mixed_y_labels = np.concatenate((data_prototypes[1], alpha_low_labels, alpha_1_labels), axis=0)
-        Mixed_X_data = np.concatenate((data_prototypes[0], data_alpha_low[0], data_alpha_1[0]), axis=0)
+    if prototypes_labels is not None:
+        Mixed_y_labels = np.concatenate((prototypes_labels, y_test_pred), axis=0)
     else:
-        Mixed_y_labels = np.concatenate((alpha_low_labels, alpha_1_labels), axis=0)
-        Mixed_X_data = np.concatenate((data_alpha_low[0], data_alpha_1[0]), axis=0)
+        Mixed_y_labels = y_test_pred 
 
-    return Mixed_X_data, Mixed_y_labels
+    return Mixed_y_labels
+
+
+def assign_labels_traintest(y_train, y_test, 
+                  prototypes_labels = None):
+
+    if prototypes_labels is not None:
+        # Function to map labels [1 ~ 6] -> prototype labels
+        for idx, current_label in enumerate(prototypes_labels):
+            prototypes_labels[idx] = current_label + 30 
+
+    # Function to map labels [1 ~ 6] -> train labels
+    for idx, current_label in enumerate(y_train):
+        y_train[idx] = current_label + 20 
+
+    # Function to map labels [1 ~ 6] -> pred labels
+
+    if prototypes_labels is not None:
+        Mixed_y_labels = np.concatenate((prototypes_labels, y_train, y_test), axis=0)
+    else:
+        Mixed_y_labels = np.concatenate((y_train, y_test), axis=0)
+
+    return Mixed_y_labels
+
+
+def concat_data(x_test, x_train = None, data_prototypes=None):
+
+    ## Convert test tensor into numpy array
+    x_test = x_test.cpu().numpy()
+    Mixed_X_data = x_test
+
+    if x_train is not None:
+        x_train = x_train.cpu().numpy()
+        Mixed_X_data = np.concatenate((x_train, Mixed_X_data), axis=0)
+
+    if data_prototypes is not None:
+        prototype_np = data_prototypes.cpu().numpy()
+        Mixed_X_data = np.concatenate((prototype_np, Mixed_X_data), axis=0)
+
+
+    return Mixed_X_data
+
+
+def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth=False, ax=None):
+    if ax is None:
+        _, ax = plt.subplots(figsize=(10, 4))
+    labels = labels if labels is not None else np.ones(X.shape[0])
+    probabilities = probabilities if probabilities is not None else np.ones(X.shape[0])
+    # Black removed and is used for noise instead.
+    unique_labels = set(labels)
+    colors = [plt.cm.Spectral(each) for each in np.linspace(0, 1, len(unique_labels))]
+    # The probability of a point belonging to its labeled cluster determines
+    # the size of its marker
+    proba_map = {idx: probabilities[idx] for idx in range(len(labels))}
+    for k, col in zip(unique_labels, colors):
+        if k == -1:
+            # Black used for noise.
+            col = [0, 0, 0, 1]
+
+        class_index = np.where(labels == k)[0]
+        print(f'label: {k} \tcolor: {col} \tlen:{len(class_index)}')
+        for ci in class_index:
+            ax.plot(
+                X[ci, 0],
+                X[ci, 1],
+                "x" if k == -1 else "o",
+                markerfacecolor=tuple(col),
+                markeredgecolor="k",
+                markersize=4 if k == -1 else 1 + 5 * proba_map[ci],
+            )
+    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+    preamble = "True" if ground_truth else "Estimated"
+    title = f"{preamble} number of clusters: {n_clusters_}"
+    if parameters is not None:
+        parameters_str = ", ".join(f"{k}={v}" for k, v in parameters.items())
+        title += f" | {parameters_str}"
+    ax.set_title(title)
+    ax.legend()
+    plt.tight_layout()
