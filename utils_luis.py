@@ -9,6 +9,7 @@ import numpy as np
 import sys
 import time
 
+from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import pandas as pd
 
@@ -466,7 +467,6 @@ def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth
             col = [0, 0, 0, 1]
 
         class_index = np.where(labels == k)[0]
-        print(f'label: {k} \tcolor: {col} \tlen:{len(class_index)}')
         for ci in class_index:
             ax.plot(
                 X[ci, 0],
@@ -485,3 +485,108 @@ def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth
     ax.set_title(title)
     ax.legend()
     plt.tight_layout()
+
+
+def compute_histogram_bins(data, desired_bin_size):
+    min_val = np.min(data)
+    max_val = np.max(data)
+    print(f'Min val {min_val} | max val {max_val}')
+    min_boundary = -1.0 * (min_val % desired_bin_size - min_val)
+    max_boundary = max_val - max_val % desired_bin_size + desired_bin_size
+    n_bins = int((max_boundary - min_boundary) / desired_bin_size) + 1
+    bins = np.linspace(min_boundary, max_boundary, n_bins)
+    return bins
+
+
+def plot_histograms(input_list_all, bin_mode = 'std_mode', bin_val=100,
+                    add_cdf = False,
+                    title_text = 'Histogram'):
+    '''
+        modes:
+            std_mode: 
+    '''
+
+    if isinstance(input_list_all, np.ndarray):
+        input_array = input_list_all
+    else:
+        input_array = np.array(input_list_all)
+
+    if bin_mode == 'std_mode':
+        bin_width = 3.5 * np.std(input_array) / len(input_array)**(1/3)
+        bins = int((max(input_array) - min(input_array)) / bin_width)
+    elif bin_mode == 'sturges_mode':
+        bins = int(np.ceil(1 + np.log2(len(input_array))))
+    elif bin_mode == 'iqr_mode':
+        iqr = np.percentile(input_array, 75) - np.percentile(input_array, 25)
+        bin_width = 2 * iqr / len(input_array)**(1/3)
+        bins = int((max(input_array) - min(input_array)) / bin_width)
+    elif bin_mode == 'bin_size':
+        bins = compute_histogram_bins(input_array, bin_val)     
+
+
+    plt.figure()    
+    n, bins_hist, patches = plt.hist(x = input_array, bins=bins, color='#0504aa',
+                                    alpha=0.7, rwidth=0.85)
+
+    plt.grid(axis='y', alpha=0.75)
+    plt.xlabel('Value')
+    plt.ylabel('Frequency')
+    plt.title(f'{title_text} - {bin_mode} | bins:{bins}')
+
+    if add_cdf:
+        plt.figure()    
+        n, bins, patches = plt.hist(x = input_array, bins=bins, color='g',
+                                        alpha=0.7, rwidth=0.85, cumulative=True)
+
+        plt.grid(axis='y', alpha=0.75)
+        plt.xlabel('Value')
+        plt.ylabel('Frequency')
+        plt.title(f'CDF-{title_text}')
+
+    plt.show()
+
+
+def estimate_pca_n(data):
+    # Step 1: Standardize the data (mean=0, std=1)
+    mean = np.mean(data, axis=0)
+    std_dev = np.std(data, axis=0)
+    data_standardized = (data - mean) / std_dev
+
+    # Create a PCA object
+    pca = PCA()
+
+    # Fit the PCA model to the standardized data
+    pca.fit(data_standardized)
+
+    # Rule 1: Explained Variance Threshold
+    threshold = 0.95  # You can adjust this threshold
+    cumulative_variance_ratio = np.cumsum(pca.explained_variance_ratio_)
+    num_components_threshold = np.argmax(cumulative_variance_ratio >= threshold) + 1
+
+    # Rule 2: Scree Plot
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(1, len(pca.explained_variance_ratio_) + 1), pca.explained_variance_ratio_, marker='o', linestyle='--')
+    plt.xlabel('Number of Components')
+    plt.ylabel('Explained Variance Ratio')
+    plt.title('Scree Plot')
+    plt.grid(True)
+    plt.show()
+
+    # Rule 3: Kaiser's Rule
+    num_components_kaiser = np.sum(pca.explained_variance_ > 1)
+
+    print("Number of components selected by Explained Variance Threshold (Rule 1):", num_components_threshold)
+    print("Number of components selected by Scree Plot (Rule 2):", 2)  # Manually choose the number of components from the plot
+    print("Number of components selected by Kaiser's Rule (Rule 3):", num_components_kaiser)
+
+def run_pca(data, n_components=3):
+
+    # Step 1: Standardize the data (mean=0, std=1)
+    mean = np.mean(data, axis=0)
+    std_dev = np.std(data, axis=0)
+    data_standardized = (data - mean) / std_dev
+
+    # Numbers to try: 16, 75, 108
+    pca_selected = PCA(n_components=16)
+    # Fit the PCA model to the standardized data with the selected number of components
+    return pca_selected.fit_transform(data_standardized)
