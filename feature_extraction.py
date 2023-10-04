@@ -190,6 +190,6 @@ def feat_extraction(dataroot_dir, mode):
 if __name__ == '__main__':
     # feat_extraction(dataroot_dir=c.TRAIN_AUDIO_VOX2, mode='train')
     # feat_extraction(dataroot_dir=c.TRAIN_AUDIO_VOX1, mode='train')
-    # feat_extraction(dataroot_dir=c.TEST_AUDIO_VOX1, mode='test')
+    feat_extraction(dataroot_dir=c.GROUP_AUDIO_SAMPLES, mode='test')
 
-    feat_extraction(dataroot_dir=c.CENTROID_AUDIO_AOLME, mode='test')
+    # feat_extraction(dataroot_dir=c.CENTROID_AUDIO_AOLME, mode='test')

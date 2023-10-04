@@ -15,7 +15,7 @@ def extract_label(filename):
     if match:
         return match.group()
     else:
-        return None
+        return 'sample'
 
 
 def get_DB_aolme(feat_dir):

@@ -25,6 +25,8 @@ CENTROID_FEAT_AOLME='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_ga
 CENTROID_AUDIO_AOLME_NOISE ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_gamma_all_Irma_noises/test/wav'
 CENTROID_FEAT_AOLME_NOISE='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_gamma_all_Irma_noises/test/feat'
 
+GROUP_AUDIO_SAMPLES = '/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/group_samples/test/wav'
+GROUP_FEAT_SAMPLES = '/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/group_samples/test/feat'
 
 USE_LOGSCALE = True
 USE_NORM=  True
