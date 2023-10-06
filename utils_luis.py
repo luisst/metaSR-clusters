@@ -3,12 +3,13 @@ import seaborn as sns
 # %matplotlib inline
 import matplotlib.pyplot as plt
 import random
+import csv
 from sklearn.ensemble import IsolationForest
 from scipy import stats
 import numpy as np
 import sys
 import time
-
+from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import pandas as pd
@@ -370,8 +371,14 @@ def d_vectors_pretrained_model(test_feat_dir, percentage_test, remove_outliers, 
 
 
 def gen_tsne(Mixed_X_data, Mixed_y_labels):
+
+    data_standardized = StandardScaler().fit_transform(Mixed_X_data)
+    # Numbers to try: 16, 75, 108
+    pca_selected = PCA(n_components=108)
+    x_low_dim = pca_selected.fit_transform(data_standardized)
+
     tsne = TSNE(n_components=2, verbose=1, perplexity=15, n_iter=900)
-    tsne_results = tsne.fit_transform(Mixed_X_data)
+    tsne_results = tsne.fit_transform(x_low_dim)
 
     df_mixed = pd.DataFrame()
     df_mixed['y'] = Mixed_y_labels
@@ -581,12 +588,33 @@ def estimate_pca_n(data):
 
 def run_pca(data, n_components=3):
 
-    # Step 1: Standardize the data (mean=0, std=1)
-    mean = np.mean(data, axis=0)
-    std_dev = np.std(data, axis=0)
-    data_standardized = (data - mean) / std_dev
+    # # Step 1: Standardize the data (mean=0, std=1)
+    # mean = np.mean(data, axis=0)
+    # std_dev = np.std(data, axis=0)
+    # data_standardized = (data - mean) / std_dev
+
+    data_standardized = StandardScaler().fit_transform(data)
 
     # Numbers to try: 16, 75, 108
     pca_selected = PCA(n_components=16)
     # Fit the PCA model to the standardized data with the selected number of components
     return pca_selected.fit_transform(data_standardized)
+
+def store_probs(array1, array2):
+    # Combine the arrays into a list of rows
+    data = list(zip(array1, array2))
+
+    # Specify the CSV file name
+    csv_file = "prob_labels.csv"
+
+    # Write the data to the CSV file
+    with open(csv_file, "w", newline="") as file:
+        writer = csv.writer(file)
+        
+        # Write the header row if needed
+        writer.writerow(["Prob", "Label"])
+        
+        # Write the data rows
+        writer.writerows(data)
+
+    print(f"CSV file '{csv_file}' has been created.")

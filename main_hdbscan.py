@@ -25,7 +25,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 percentage_test = 0.0
 remove_outliers = 'None'
 noise_flag =  False
-load_prev = True
+load_prev = False
 
 if not load_prev:
     test_feat_dir = [constants.GROUP_FEAT_SAMPLES]
@@ -63,9 +63,9 @@ with open("X_data_and_labels.pickle", "rb") as file:
 Mixed_X_data, Mixed_y_labels = X_data_and_labels
 
 # estimate_pca_n(Mixed_X_data)
-data_pca = run_pca(Mixed_X_data, 16)
+data_pca = run_pca(Mixed_X_data, 108)
 
-hdb = hdbscan.HDBSCAN(min_cluster_size=5).fit(data_pca)
+hdb = hdbscan.HDBSCAN(min_cluster_size=3).fit(data_pca)
 
 samples_outliers = hdb.outlier_scores_
 plot_histograms(samples_outliers, bin_mode = 'std_mode', bin_val=100,
@@ -74,6 +74,11 @@ plot_histograms(samples_outliers, bin_mode = 'std_mode', bin_val=100,
 
 samples_prob = hdb.probabilities_
 non_zero_count =np.count_nonzero(samples_prob)
+
+# print number of clusters:
+unique_labels = set(hdb.labels_)
+print(f'Number of clusters: {len(unique_labels) - 1}')
+
 print(f'hdb probs \t min: {min(samples_prob)} \t max: {max(samples_prob)} \t non_zero: {non_zero_count}')
 
 if non_zero_count == 0:
@@ -86,7 +91,7 @@ plot_histograms(samples_prob, bin_mode = 'std_mode', bin_val=100,
 df_mixed = gen_tsne(Mixed_X_data, Mixed_y_labels)
 x_tsne_2d = np.array(list(zip(df_mixed['tsne-2d-one'], df_mixed['tsne-2d-two'])))
 
-# plot_clustering(x_tsne_2d, labels=Mixed_y_labels, ground_truth=True)
+plot_clustering(x_tsne_2d, labels=Mixed_y_labels, ground_truth=True)
 
 plot_clustering(x_tsne_2d, hdb.labels_, hdb.probabilities_)
 
