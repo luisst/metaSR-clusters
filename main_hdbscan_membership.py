@@ -24,8 +24,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
 percentage_test = 0.0
 remove_outliers = 'None'
-noise_flag =  False
-load_prev = False
+load_prev = True
+pca_elem = 170
+min_cluster_size = 7
+run_id = f'GT_irma_min{min_cluster_size}_PCA{pca_elem}_Noise_leaf'
 
 if not load_prev:
     test_feat_dir = [constants.CENTROID_FEAT_AOLME_NOISE]
@@ -41,8 +43,8 @@ if not load_prev:
     y_test = dataset_dvectors[3]
     speaker_labels_dict_train = dataset_dvectors[4]
 
-    prototype_tensor, prototypes_labels = generate_prototype(X_train, y_train, verbose=False)
-    prototypes_labels = prototypes_labels.cpu().numpy().astype(int)
+    # prototype_tensor, prototypes_labels = generate_prototype(X_train, y_train, verbose=False)
+    # prototypes_labels = prototypes_labels.cpu().numpy().astype(int)
 
     X_test = X_test.cpu().numpy()
     X_train = X_train.cpu().numpy()
@@ -52,7 +54,6 @@ if not load_prev:
 
 
     ## ----------------------------------- Method --------------------------
-
     # Store the data in a file using pickle
     X_data_and_labels = [Mixed_X_data, Mixed_y_labels]
     with open("X_data_and_labels.pickle", "wb") as file:
@@ -68,20 +69,22 @@ with open("X_data_and_labels.pickle", "rb") as file:
 Mixed_X_data, Mixed_y_labels = X_data_and_labels
 
 # estimate_pca_n(Mixed_X_data)
-data_pca = run_pca(Mixed_X_data, 16)
+data_pca = run_pca(Mixed_X_data, pca_elem)
 
-hdb = hdbscan.HDBSCAN(min_cluster_size=3).fit(data_pca)
+### try cluster_selection_method = 'leaf' | default = 'eom'
+hdb = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,\
+                       cluster_selection_method = 'leaf').fit(data_pca)
 
-# samples_outliers = hdb.outlier_scores_
-# plot_histograms(samples_outliers, bin_mode = 'std_mode', bin_val=100,
-#                     add_cdf = False,
-#                     title_text = f'Outliers')
+samples_outliers = hdb.outlier_scores_
+plot_histograms(samples_outliers, bin_mode = 'std_mode', bin_val=100,
+                    add_cdf = False,
+                    title_text = f'Outliers')
 
 samples_prob = hdb.probabilities_
 samples_label = hdb.labels_
 non_zero_count =np.count_nonzero(samples_prob)
 
-store_probs(samples_prob, samples_label)
+store_probs(samples_prob, samples_label, run_id = run_id)
 
 # print number of clusters:
 unique_labels = set(samples_label)
@@ -99,9 +102,9 @@ plot_histograms(samples_prob, bin_mode = 'std_mode', bin_val=100,
 df_mixed = gen_tsne(Mixed_X_data, Mixed_y_labels)
 x_tsne_2d = np.array(list(zip(df_mixed['tsne-2d-one'], df_mixed['tsne-2d-two'])))
 
-plot_clustering(x_tsne_2d, labels=Mixed_y_labels, ground_truth=True)
+plot_clustering(x_tsne_2d, labels=Mixed_y_labels, ground_truth=True, run_id = run_id)
 
-plot_clustering(x_tsne_2d, samples_label, samples_prob)
+plot_clustering(x_tsne_2d, samples_label, samples_prob, run_id = run_id)
 
 plt.show()
 

@@ -457,7 +457,11 @@ def concat_data(x_test, x_train = None, data_prototypes=None):
     return Mixed_X_data
 
 
-def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth=False, ax=None):
+def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth=False, ax=None, run_id = ''):
+
+    if run_id != '':
+        run_id = '  ' + run_id
+
     if ax is None:
         _, ax = plt.subplots(figsize=(10, 4))
     labels = labels if labels is not None else np.ones(X.shape[0])
@@ -489,6 +493,7 @@ def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth
     if parameters is not None:
         parameters_str = ", ".join(f"{k}={v}" for k, v in parameters.items())
         title += f" | {parameters_str}"
+    title = title + run_id
     ax.set_title(title)
     ax.legend()
     plt.tight_layout()
@@ -534,6 +539,12 @@ def plot_histograms(input_list_all, bin_mode = 'std_mode', bin_val=100,
     plt.figure()    
     n, bins_hist, patches = plt.hist(x = input_array, bins=bins, color='#0504aa',
                                     alpha=0.7, rwidth=0.85)
+
+    cum_exp_var = np.cumsum(n)
+    step_axis = np.linspace(0, 1, bins)
+
+    plt.step(step_axis, cum_exp_var, where='mid',
+            label='Cumulative Hist', color='red')
 
     plt.grid(axis='y', alpha=0.75)
     plt.xlabel('Value')
@@ -600,12 +611,12 @@ def run_pca(data, n_components=3):
     # Fit the PCA model to the standardized data with the selected number of components
     return pca_selected.fit_transform(data_standardized)
 
-def store_probs(array1, array2):
+def store_probs(array1, array2, run_id = 'current'):
     # Combine the arrays into a list of rows
     data = list(zip(array1, array2))
 
     # Specify the CSV file name
-    csv_file = "prob_labels.csv"
+    csv_file = f"prob_labels_{run_id}.csv"
 
     # Write the data to the CSV file
     with open(csv_file, "w", newline="") as file:
