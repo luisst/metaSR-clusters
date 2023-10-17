@@ -457,10 +457,9 @@ def concat_data(x_test, x_train = None, data_prototypes=None):
     return Mixed_X_data
 
 
-def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth=False, ax=None, run_id = ''):
-
-    if run_id != '':
-        run_id = '  ' + run_id
+def plot_clustering(X, labels, probabilities=None, parameters=None, 
+                    ground_truth=False, ax=None,
+                    remove_outliers = False):
 
     if ax is None:
         _, ax = plt.subplots(figsize=(10, 4))
@@ -476,6 +475,8 @@ def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth
         if k == -1:
             # Black used for noise.
             col = [0, 0, 0, 1]
+            if remove_outliers:
+                continue
 
         class_index = np.where(labels == k)[0]
         for ci in class_index:
@@ -488,15 +489,50 @@ def plot_clustering(X, labels, probabilities=None, parameters=None, ground_truth
                 markersize=4 if k == -1 else 1 + 5 * proba_map[ci],
             )
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
-    preamble = "True" if ground_truth else "Estimated"
-    title = f"{preamble} number of clusters: {n_clusters_}"
+    preamble = "GT" if ground_truth else "Prd"
+    title = f"{preamble} #n: {n_clusters_}"
     if parameters is not None:
         parameters_str = ", ".join(f"{k}={v}" for k, v in parameters.items())
         title += f" | {parameters_str}"
-    title = title + run_id
+    title = title 
     ax.set_title(title)
     ax.legend()
     plt.tight_layout()
+
+
+def plot_clustering_dual(x_tsne_2d, Mixed_y_labels,
+                         samples_label, samples_prob,
+                         run_id, output_folder_path,
+                         plot_mode):
+
+    ## Available options: 
+    ## 'show' : only plot
+    ## 'store' : only store
+    ## 'show_store' : plot and store fig
+
+    combined_fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    plot_clustering(x_tsne_2d, labels=Mixed_y_labels, ground_truth=True,
+                    ax=axes[0])
+
+    plot_clustering(x_tsne_2d, samples_label, samples_prob,
+                    remove_outliers = False, ax=axes[1])
+
+    current_fig_path = output_folder_path.joinpath(f'{run_id}.png') 
+
+    combined_fig.suptitle(f'{run_id}', fontsize=14)
+    plt.tight_layout()
+
+
+    if plot_mode == 'show':
+        plt.show()
+    elif plot_mode == 'store':
+        combined_fig.savefig(current_fig_path, dpi=300, overwrite=True)
+    elif plot_mode == 'show_store':
+        combined_fig.savefig(current_fig_path, dpi=300, overwrite=True)
+        plt.show()
+    else:
+        print(f'Error! plot_histogam plot_mode')
+
 
 
 def compute_histogram_bins(data, desired_bin_size):
@@ -512,11 +548,19 @@ def compute_histogram_bins(data, desired_bin_size):
 
 def plot_histograms(input_list_all, bin_mode = 'std_mode', bin_val=100,
                     add_cdf = False,
-                    title_text = 'Histogram'):
+                    title_text = 'Histogram',
+                    run_id = 'histogram',
+                    plot_mode = 'show',
+                    output_path = '.'):
     '''
         modes:
             std_mode: 
     '''
+
+    ## Available options: 
+    ## 'show' : only plot
+    ## 'store' : only store
+    ## 'show_store' : plot and store fig
 
     if isinstance(input_list_all, np.ndarray):
         input_array = input_list_all
@@ -536,12 +580,12 @@ def plot_histograms(input_list_all, bin_mode = 'std_mode', bin_val=100,
         bins = compute_histogram_bins(input_array, bin_val)     
 
 
-    plt.figure()    
+    plt.figure(figsize=(12, 6))    
     n, bins_hist, patches = plt.hist(x = input_array, bins=bins, color='#0504aa',
                                     alpha=0.7, rwidth=0.85)
 
     cum_exp_var = np.cumsum(n)
-    step_axis = np.linspace(0, 1, bins)
+    step_axis = np.linspace(0, bins_hist[-1], bins)
 
     plt.step(step_axis, cum_exp_var, where='mid',
             label='Cumulative Hist', color='red')
@@ -552,7 +596,7 @@ def plot_histograms(input_list_all, bin_mode = 'std_mode', bin_val=100,
     plt.title(f'{title_text} - {bin_mode} | bins:{bins}')
 
     if add_cdf:
-        plt.figure()    
+        plt.figure(figsize=(12, 6))    
         n, bins, patches = plt.hist(x = input_array, bins=bins, color='g',
                                         alpha=0.7, rwidth=0.85, cumulative=True)
 
@@ -561,8 +605,17 @@ def plot_histograms(input_list_all, bin_mode = 'std_mode', bin_val=100,
         plt.ylabel('Frequency')
         plt.title(f'CDF-{title_text}')
 
-    plt.show()
-
+    if plot_mode == 'show':
+        plt.show()
+    elif plot_mode == 'store':
+        current_fig_path = output_path.joinpath(f'{run_id}_{title_text}.png')
+        plt.savefig(current_fig_path, dpi=300, overwrite=True)
+    elif plot_mode == 'show_store':
+        current_fig_path = output_path.joinpath(f'{run_id}_{title_text}.png')
+        plt.savefig(current_fig_path, dpi=300, overwrite=True)
+        plt.show()
+    else:
+        print(f'Error! plot_histogam plot_mode')
 
 def estimate_pca_n(data):
     # Step 1: Standardize the data (mean=0, std=1)
@@ -582,7 +635,7 @@ def estimate_pca_n(data):
     num_components_threshold = np.argmax(cumulative_variance_ratio >= threshold) + 1
 
     # Rule 2: Scree Plot
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(12, 6))
     plt.plot(range(1, len(pca.explained_variance_ratio_) + 1), pca.explained_variance_ratio_, marker='o', linestyle='--')
     plt.xlabel('Number of Components')
     plt.ylabel('Explained Variance Ratio')
@@ -611,12 +664,12 @@ def run_pca(data, n_components=3):
     # Fit the PCA model to the standardized data with the selected number of components
     return pca_selected.fit_transform(data_standardized)
 
-def store_probs(array1, array2, run_id = 'current'):
+def store_probs(array1, array2, output_folder_path, run_id = 'current'):
     # Combine the arrays into a list of rows
     data = list(zip(array1, array2))
 
     # Specify the CSV file name
-    csv_file = f"prob_labels_{run_id}.csv"
+    csv_file = output_folder_path.joinpath(f"prob_labels_{run_id}.csv")
 
     # Write the data to the CSV file
     with open(csv_file, "w", newline="") as file:
@@ -629,3 +682,16 @@ def store_probs(array1, array2, run_id = 'current'):
         writer.writerows(data)
 
     print(f"CSV file '{csv_file}' has been created.")
+
+def check_0_clusters(samples_prob, samples_label, verbose = False):
+    # print number of clusters:
+    non_zero_count =np.count_nonzero(samples_prob)
+    unique_labels = set(samples_label)
+    if verbose:
+        print(f'Number of clusters: {len(unique_labels) - 1}')
+        print(f'hdb probs \t min: {min(samples_prob)} \t max: {max(samples_prob)} \t non_zero: {non_zero_count}')
+
+    if non_zero_count == 0:
+        return True
+    else:
+        return False

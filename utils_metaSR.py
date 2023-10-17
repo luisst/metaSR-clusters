@@ -11,7 +11,10 @@ from model.model import background_resnet
 
 
 def extract_label(filename):
-    match = re.search(r'(?<=segment_\d\d\d_)[A-Za-z0-9]+(?=_\d+\.\w\w\w)|(?<=group_background_)[A-Za-z0-9]+(?=_\d+\.\w\w\w)', filename)
+    # match = re.search(r'(?<=segment_\d\d\d_)[A-Za-z0-9]+(?=_\d+\.\w\w\w)|(?<=group_background_)[A-Za-z0-9]+(?=_\d+\.\w\w\w)', filename)
+
+    match = re.search(r'[a-zA-Z0-9]+?(?=_\d+\.\w\w\w)', filename)
+
     if match:
         return match.group()
     else:
