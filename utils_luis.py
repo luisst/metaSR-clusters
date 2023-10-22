@@ -14,6 +14,8 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import pandas as pd
 
+
+
 import torch.nn.functional as F
 from utils_metaSR import get_DB_aolme, load_model, d_vector_dict_labels_aolme 
 
@@ -370,14 +372,14 @@ def d_vectors_pretrained_model(test_feat_dir, percentage_test, remove_outliers, 
                                     verbose = verbose)
 
 
-def gen_tsne(Mixed_X_data, Mixed_y_labels):
+def gen_tsne(Mixed_X_data, Mixed_y_labels, perplexity_val = 15, n_iter = 900):
 
     data_standardized = StandardScaler().fit_transform(Mixed_X_data)
     # Numbers to try: 16, 75, 108
     pca_selected = PCA(n_components=108)
     x_low_dim = pca_selected.fit_transform(data_standardized)
 
-    tsne = TSNE(n_components=2, verbose=1, perplexity=15, n_iter=900)
+    tsne = TSNE(n_components=2, verbose=False, perplexity=perplexity_val, n_iter=n_iter)
     tsne_results = tsne.fit_transform(x_low_dim)
 
     df_mixed = pd.DataFrame()
@@ -459,7 +461,8 @@ def concat_data(x_test, x_train = None, data_prototypes=None):
 
 def plot_clustering(X, labels, probabilities=None, parameters=None, 
                     ground_truth=False, ax=None,
-                    remove_outliers = False):
+                    remove_outliers = False,
+                    add_gt_prd_flag = True):
 
     if ax is None:
         _, ax = plt.subplots(figsize=(10, 4))
@@ -490,13 +493,15 @@ def plot_clustering(X, labels, probabilities=None, parameters=None,
             )
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
     preamble = "GT" if ground_truth else "Prd"
-    title = f"{preamble} #n: {n_clusters_}"
+    if add_gt_prd_flag:
+        title = f"{preamble} #n: {n_clusters_}"
+    else:
+        title = ''
     if parameters is not None:
         parameters_str = ", ".join(f"{k}={v}" for k, v in parameters.items())
         title += f" | {parameters_str}"
     title = title 
     ax.set_title(title)
-    ax.legend()
     plt.tight_layout()
 
 
@@ -533,7 +538,63 @@ def plot_clustering_dual(x_tsne_2d, Mixed_y_labels,
     else:
         print(f'Error! plot_histogam plot_mode')
 
+def divide_into_sublists(long_list, sublist_size):
+    sublists = []
+    for i in range(0, len(long_list), sublist_size):
+        sublist = long_list[i:i + sublist_size]
+        sublists.append(sublist)
+    return sublists
 
+def plot_clustering_subfig(list_dfs, Mixed_y_labels,
+                           num_rows, num_cols,
+                           params_list,
+                            run_id, output_folder_path,
+                            plot_mode):
+
+    ## Available options: 
+    ## 'show' : only plot
+    ## 'store' : only store
+    ## 'show_store' : plot and store fig
+
+    num_arrays = len(list_dfs)
+    num_subplots = num_rows * num_cols
+
+    # Calculate the number of figures needed to display all arrays
+    num_figures = int(np.ceil(num_arrays / num_subplots))
+
+    for figure_num in range(num_figures):
+        combined_fig, axes = plt.subplots(num_rows, num_cols, figsize=(12, 6))
+        print(f'\nFigure {figure_num} / {num_figures}')
+
+        for i in range(num_subplots):
+            array_idx = figure_num * num_subplots + i
+
+            if array_idx < num_arrays:
+                row_idx = i // num_cols
+                col_idx = i % num_cols
+
+                current_2d_tsne = np.array(list(zip(list_dfs[array_idx]['tsne-2d-one'], 
+                                                    list_dfs[array_idx]['tsne-2d-two'])))
+                plot_clustering(current_2d_tsne, Mixed_y_labels,
+                                parameters=params_list[array_idx],
+                                ground_truth=True, ax=axes[row_idx, col_idx],
+                                add_gt_prd_flag = False)
+
+        current_fig_path = output_folder_path.joinpath(f'{run_id}-{figure_num}.png') 
+
+        combined_fig.suptitle(f'{run_id}', fontsize=14)
+        plt.tight_layout()
+
+
+        if plot_mode == 'show':
+            plt.show()
+        elif plot_mode == 'store':
+            combined_fig.savefig(current_fig_path, dpi=300, overwrite=True)
+        elif plot_mode == 'show_store':
+            combined_fig.savefig(current_fig_path, dpi=300, overwrite=True)
+            plt.show()
+        else:
+            print(f'Error! plot_histogam plot_mode')
 
 def compute_histogram_bins(data, desired_bin_size):
     min_val = np.min(data)
