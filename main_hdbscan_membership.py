@@ -33,7 +33,7 @@ test_feat_dir = constants.CENTROID_FEAT_AOLME_NOISE
 percentage_test = 0.0
 remove_outliers = 'None'
 plot_hist_flag = False
-estimate_pca_flag = False
+estimate_pca_flag = True 
 store_probs_flag = False
 
 plot_mode = 'show_store' # 'show' or 'show_store'

@@ -189,5 +189,5 @@ def feat_extraction(dataroot_dir, mode):
 
 if __name__ == '__main__':
     # feat_extraction(dataroot_dir=c.TRAIN_AUDIO_VOX1, mode='train')
-    feat_extraction(dataroot_dir=c.CENTROID_AUDIO_AOLME_TTS2ct_NOISE, mode='test')
+    feat_extraction(dataroot_dir=c.CHUNKS_AUDIO_STG2_AZURE_IRMA, mode='test')
     # feat_extraction(dataroot_dir=c.CENTROID_AUDIO_AOLME_NOISE, mode='test')    

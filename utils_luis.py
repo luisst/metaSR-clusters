@@ -4,7 +4,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import random
 import csv
+import shutil
 from sklearn.ensemble import IsolationForest
+from pathlib import Path
 from scipy import stats
 import numpy as np
 import sys
@@ -14,17 +16,41 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import pandas as pd
 
+import matplotlib.lines as mlines
 
 
 import torch.nn.functional as F
 from utils_metaSR import get_DB_aolme, load_model, d_vector_dict_labels_aolme 
+
+
+def filter_test_values(input_list):
+    input_list_train = [x for x in input_list if x < 100]
+    input_list_test = [x for x in input_list if x >= 100 ]
+    
+    for value in input_list_test:
+        if not(value - 100 in input_list_train):
+            input_list_train.append(value)
+    
+    return sorted(input_list_train)
+
+
+def modify_predict_labels(GT_labels):
+
+    modified_labels = []
+    for elem in GT_labels:
+        if elem == -1:
+            modified_labels.append(elem)
+        else:
+            modified_labels.append(elem + 100)
+
+    return modified_labels
 
 def plot_styles(df_mixed, speakers_to_int_dict):
     marker_sizes = []
     for label in df_mixed['y']:
         if (30<=label<=40):
             marker_sizes.append(200)
-        elif label == -10:
+        elif label == 6:
             marker_sizes.append(80)
         else:
             marker_sizes.append(60)
@@ -33,7 +59,7 @@ def plot_styles(df_mixed, speakers_to_int_dict):
     for current_label_y in set(df_mixed['y']):
         if 30 <= current_label_y <= 40:
             marker_styles[current_label_y] = 's'
-        elif current_label_y == -10:
+        elif current_label_y == 6:
             marker_styles[current_label_y] = '^'
         else:
             marker_styles[current_label_y] = 'o'
@@ -63,7 +89,7 @@ def plot_styles(df_mixed, speakers_to_int_dict):
         33: 'green',
         34: 'orange',
         35: 'purple',
-        -10: 'black'
+        9: 'black'
     }
 
     # To print the centroids!
@@ -204,27 +230,36 @@ def convert_dict_to_tensor(dict_data_input):
     # Initialize lists to store labels and concatenated data
     labels_list = []
     data_list = []
+    path_list = []
+    concatenated_tensor = torch.empty(0).cuda()
 
     # Iterate through the dictionary and concatenate tensors
-    for label, tensor in dict_data_input.items():
-        # Repeat the label for each row in the tensor
-        labels = [label] * tensor.shape[0]
-        
-        # Append labels and data to the respective lists
-        labels_list.extend(labels)
-        data_list.append(tensor)
+    for label, tensor_and_path in dict_data_input.items():
+        if len(tensor_and_path) != 0:
+            # Repeat the label for each row in the tensor
+            labels = [label] * len(tensor_and_path)
+            
+            # Append labels and data to the respective lists
+            labels_list.extend(labels)
+            for current_tuple in tensor_and_path:
+                concatenated_tensor = torch.cat((concatenated_tensor, current_tuple[0]), dim=0)
+                # data_list.append()
+                path_list.append(current_tuple[1])
 
-    # Concatenate the tensors in data_list along the first dimension (rows)
-    X_data = torch.cat(data_list, dim=0)
+    # # Concatenate the tensors in data_list along the first dimension (rows)
+    # if len(data_list) != 0:
+    #     X_data = torch.cat(data_list, dim=0)
+    # else:
+    #     X_data = torch.empty(0)
 
     speaker_labels_dict = dict([(y,x+1) for x,y in enumerate(sorted(set(labels_list)))])
     if 'noises' in speaker_labels_dict.keys():
-        speaker_labels_dict['noises'] = -10
+        speaker_labels_dict['noises'] = 6
 
     y_lbls = [speaker_labels_dict[x] for x in labels_list]
     y_data = np.array(y_lbls)
 
-    return X_data, y_data, speaker_labels_dict 
+    return concatenated_tensor, y_data, path_list, speaker_labels_dict 
 
 
 def cos_sim_filter(X_test, prototype_tensor, prototypes_labels, th=0.6, verbose=False):
@@ -251,7 +286,10 @@ def cos_sim_filter(X_test, prototype_tensor, prototypes_labels, th=0.6, verbose=
     y_labels_pred = np.array(y_labels_pred)
     return y_labels_pred
 
-def separate_dict_embeddings(dict_embeddings, percentage_test, remove_outliers='None', verbose = False):
+def separate_dict_embeddings(dict_embeddings, percentage_test,
+                             remove_outliers='None',
+                             return_paths = False,
+                             verbose = False):
     # Calculate the total number of samples across all labels
     total_samples = sum(len(samples) for samples in dict_embeddings.values())
     
@@ -281,6 +319,8 @@ def separate_dict_embeddings(dict_embeddings, percentage_test, remove_outliers='
         num_samples = len(samples)
         desired_num_samples = labels_amounts[label]
 
+
+
         # Check if there are enough samples for this label
         if num_samples >= desired_num_samples:
             test_indices = random.sample(range(num_samples), desired_num_samples)
@@ -288,8 +328,8 @@ def separate_dict_embeddings(dict_embeddings, percentage_test, remove_outliers='
             # List of indices that were not selected
             train_indices = [index for index in range(num_samples) if index not in test_indices]
 
-            test_sampled_data = samples[test_indices]
-            train_sampled_data = samples[train_indices]
+            test_sampled_data = [samples[i] for i in test_indices]
+            train_sampled_data = [samples[i] for i in train_indices]
 
         # Store the sampled data in the new dictionary
         dict_test_data[label] = test_sampled_data 
@@ -300,21 +340,31 @@ def separate_dict_embeddings(dict_embeddings, percentage_test, remove_outliers='
         
         
         if remove_outliers == 'IQR':
-            filtered_data = remove_outliers_IQR(train_sampled_data.cpu().numpy())
-            dict_train_data[label] = filtered_data 
+            # Extract all the tensors from the tuple list   
+            train_tensor_list = [t[0] for t in train_sampled_data]
+            train_paths_list = [t[1] for t in train_sampled_data]
+
+            train_filtered_data = remove_outliers_IQR(train_tensor_list.cpu().numpy())
+            # Assuming your lists are named 'list1' and 'list2'
+            train_tuples_list = list(zip(train_filtered_data, train_paths_list))
+
+            dict_train_data[label] = train_tuples_list 
         elif remove_outliers == 'None':
             dict_train_data[label] = train_sampled_data 
         else: 
-            sys.error('Remove_outliers string not supported')
+            sys.exit('Remove_outliers string not supported')
 
 
-    X_test, y_test, speaker_labels_dict_test = convert_dict_to_tensor(dict_test_data)
-    X_train, y_train, speaker_labels_dict_train = convert_dict_to_tensor(dict_train_data)
+    X_test, y_test, X_test_path, speaker_labels_dict_test = convert_dict_to_tensor(dict_test_data)
+    X_train, y_train, X_train_path, speaker_labels_dict_train = convert_dict_to_tensor(dict_train_data)
 
     if speaker_labels_dict_test != speaker_labels_dict_test:
         sys.error('speaker_labels_dict from Train and Test are not the same')
 
-    return X_train, y_train, X_test, y_test, speaker_labels_dict_train
+    if return_paths:
+        return X_train, y_train, X_train_path, X_test, y_test, X_test_path, speaker_labels_dict_train
+    else:
+        return X_train, y_train, X_test, y_test, speaker_labels_dict_train
 
 
 def generate_prototype(x_train, y_train, verbose=False):
@@ -348,31 +398,57 @@ def generate_prototype(x_train, y_train, verbose=False):
 
     return prototype_tensor, prototype_labels
 
-def d_vectors_pretrained_model(test_feat_dir, percentage_test, remove_outliers, use_cuda=True, verbose = False):
+def d_vectors_pretrained_model(test_feat_dir, percentage_test, remove_outliers,
+                               return_paths_flag = False,
+                               norm_flag = False,
+                               use_cuda=True, verbose = False):
 
     test_db = get_DB_aolme(test_feat_dir)
     n_classes = 5994 # from trained with vox1
     cp_num = 100
 
     log_dir = 'saved_model/baseline_' + str(0).zfill(3)
-
-    # print the experiment configuration
-    print('\nNumber of classes (speakers) in test set:\n{}\n'.format(len(set(test_db['labels']))))
-
+    
     # load model from checkpoint
     model = load_model(log_dir, cp_num, n_classes, True)
 
 
-    dict_embeddings = d_vector_dict_labels_aolme(test_db, model)
+    dict_embeddings = d_vector_dict_labels_aolme(test_db, model, norm_flag=norm_flag)
 
 
     return separate_dict_embeddings(dict_embeddings, 
-                                    percentage_test, 
+                                    percentage_test,
+                                    return_paths = return_paths_flag,
                                     remove_outliers=remove_outliers, 
                                     verbose = verbose)
 
 
-def gen_tsne(Mixed_X_data, Mixed_y_labels, perplexity_val = 15, n_iter = 900):
+def gen_tsne(Mixed_X_data, Mixed_y_labels,
+             perplexity_val = 15, n_iter = 900,
+             n_comp = 108):
+    
+    if n_comp == 0:
+        tsne = TSNE(n_components=2, verbose=False, perplexity=perplexity_val, n_iter=n_iter)
+        tsne_results = tsne.fit_transform(Mixed_X_data)
+        print(f'PCA before t-snePRE skipped')
+    else:
+        data_standardized = StandardScaler().fit_transform(Mixed_X_data)
+        # Numbers to try: 16, 75, 108
+        pca_selected = PCA(n_components=108)
+        x_low_dim = pca_selected.fit_transform(data_standardized)
+
+        tsne = TSNE(n_components=2, verbose=False, perplexity=perplexity_val, n_iter=n_iter)
+        tsne_results = tsne.fit_transform(x_low_dim)
+
+    df_mixed = pd.DataFrame()
+    df_mixed['y'] = Mixed_y_labels
+    df_mixed['tsne-2d-one'] = tsne_results[:,0]
+    df_mixed['tsne-2d-two'] = tsne_results[:,1]
+
+    return df_mixed
+
+
+def gen_tsne_X(Mixed_X_data, perplexity_val = 15, n_iter = 900):
 
     data_standardized = StandardScaler().fit_transform(Mixed_X_data)
     # Numbers to try: 16, 75, 108
@@ -382,13 +458,7 @@ def gen_tsne(Mixed_X_data, Mixed_y_labels, perplexity_val = 15, n_iter = 900):
     tsne = TSNE(n_components=2, verbose=False, perplexity=perplexity_val, n_iter=n_iter)
     tsne_results = tsne.fit_transform(x_low_dim)
 
-    df_mixed = pd.DataFrame()
-    df_mixed['y'] = Mixed_y_labels
-    df_mixed['tsne-2d-one'] = tsne_results[:,0]
-    df_mixed['tsne-2d-two'] = tsne_results[:,1]
-
-    return df_mixed
-
+    return tsne_results
 
 def assign_labels_prediction(gt_labels, pred_labels, 
                   prototypes_labels = None):
@@ -492,6 +562,103 @@ def plot_clustering(X, labels, probabilities=None, parameters=None,
                 markersize=4 if k == -1 else 1 + 5 * proba_map[ci],
             )
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+    if ground_truth:
+        if n_clusters_ == 1:
+            title = f"Unlabeled total samples: {len(labels)}"
+        else:
+            title = f"GT #n: {n_clusters_} T: {len(labels)}"
+    else:
+        non_outliers_percentage = (len(labels[labels != -1]) / len(labels)) * 100
+        title = f"Prd #n: {n_clusters_} | Mem %: {non_outliers_percentage:.2f}%"
+
+    if parameters is not None:
+        parameters_str = ", ".join(f"{k}={v}" for k, v in parameters.items())
+        title += f" | {parameters_str}"
+    title = title 
+    ax.set_title(title)
+
+    # # Add legend with the number of labels for each cluster
+    # legend_labels = [f"C{k}: {list(labels).count(k)}" for k in unique_labels]
+    legend_labels = [f": {list(labels).count(k)}" for k in unique_labels]
+
+    # Customizing the legend to not display the marker
+    legend_without_symbol = []
+    for idx, label_id in enumerate(unique_labels):
+        if label_id != -1:
+            current_lbl_color = colors[idx]
+            current_label = legend_labels[idx]
+            legend_without_symbol.append(mlines.Line2D([], [], color=current_lbl_color,
+                                                        marker='o', 
+                                                        # linestyle='solid', 
+                                                        label=current_label))
+    plt.legend(handles=legend_without_symbol)
+
+    # ax.legend(legend_labels, labelcolor=colors)
+    plt.tight_layout()
+
+
+def plot_clustering_predict(X, labels, parameters=None, 
+                        ground_truth=False, ax=None,
+                        remove_outliers = False,
+                        add_gt_prd_flag = True):
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(10, 4))
+    labels = labels if labels is not None else np.ones(X.shape[0])
+    # Black removed and is used for noise instead.
+    unique_labels = sorted(list(set(labels)))
+
+    if ground_truth:
+        # Create color palette only with 
+        unique_train_test = filter_test_values(labels)
+        colors = [plt.cm.Spectral(each) for each in np.linspace(0, 1, len(unique_train_test))]
+    else:
+        colors = [plt.cm.Spectral(each) for each in np.linspace(0, 1, len(unique_labels))]
+
+    for k in unique_labels:
+        if k == -1:
+            # Black used for noise.
+            col = [0, 0, 0, 1]
+            if remove_outliers:
+                continue
+        
+        if ground_truth:
+            if k in unique_train_test:
+                idx_color = unique_train_test.index(k)
+                current_col = colors[idx_color]
+            else:
+                idx_color = unique_train_test.index(k-100)
+                current_col = colors[idx_color]
+        else:
+            idx_color = unique_labels.index(k)
+            current_col = colors[idx_color]
+        
+        if k == -1:
+            current_shape = "x"
+        elif k > 100:
+            current_shape = "^"
+        else:
+            current_shape = "o"
+
+
+        if k == -1:
+            current_marker_size = 4
+        elif k > 100:
+            current_marker_size = 10 
+        else:
+            current_marker_size = 6 
+
+        class_index = np.where(labels == k)[0]
+        for ci in class_index:
+            ax.plot(
+                X[ci, 0],
+                X[ci, 1],
+                current_shape,
+                markerfacecolor=tuple(current_col),
+                markeredgecolor="k",
+                markersize=current_marker_size,
+            )
+    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
     preamble = "GT" if ground_truth else "Prd"
     if add_gt_prd_flag:
         title = f"{preamble} #n: {n_clusters_}"
@@ -519,8 +686,9 @@ def plot_clustering_dual(x_tsne_2d, Mixed_y_labels,
     plot_clustering(x_tsne_2d, labels=Mixed_y_labels, ground_truth=True,
                     ax=axes[0])
 
-    plot_clustering(x_tsne_2d, samples_label, samples_prob,
-                    remove_outliers = False, ax=axes[1])
+    plot_clustering(x_tsne_2d, labels=samples_label,
+                     probabilities = samples_prob,
+                    remove_outliers = True, ax=axes[1])
 
     current_fig_path = output_folder_path.joinpath(f'{run_id}.png') 
 
@@ -537,6 +705,43 @@ def plot_clustering_dual(x_tsne_2d, Mixed_y_labels,
         plt.show()
     else:
         print(f'Error! plot_histogam plot_mode')
+
+
+def plot_clustering_dual_predict(x_tsne_2d, 
+                             Mixed_y_GT,
+                             Mixed_y_prediction,
+                            run_id, output_folder_path,
+                            plot_mode,
+                            plot_minus1 = True):
+
+    ## Available options: 
+    ## 'show' : only plot
+    ## 'store' : only store
+    ## 'show_store' : plot and store fig
+
+    combined_fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    plot_clustering_predict(x_tsne_2d, labels=Mixed_y_GT, ground_truth=True,
+                    ax=axes[0])
+
+    plot_clustering_predict(x_tsne_2d, labels=Mixed_y_prediction,
+                    remove_outliers = not(plot_minus1), ax=axes[1])
+
+    current_fig_path = output_folder_path.joinpath(f'{run_id}.png') 
+
+    combined_fig.suptitle(f'{run_id}', fontsize=14)
+    plt.tight_layout()
+
+
+    if plot_mode == 'show':
+        plt.show()
+    elif plot_mode == 'store':
+        combined_fig.savefig(current_fig_path, dpi=300, overwrite=True)
+    elif plot_mode == 'show_store':
+        combined_fig.savefig(current_fig_path, dpi=300, overwrite=True)
+        plt.show()
+    else:
+        print(f'Error! plot_histogam plot_mode')
+
 
 def divide_into_sublists(long_list, sublist_size):
     sublists = []
@@ -575,10 +780,17 @@ def plot_clustering_subfig(list_dfs, Mixed_y_labels,
 
                 current_2d_tsne = np.array(list(zip(list_dfs[array_idx]['tsne-2d-one'], 
                                                     list_dfs[array_idx]['tsne-2d-two'])))
-                plot_clustering(current_2d_tsne, Mixed_y_labels,
-                                parameters=params_list[array_idx],
-                                ground_truth=True, ax=axes[row_idx, col_idx],
-                                add_gt_prd_flag = False)
+                
+                if num_rows == 1:
+                    plot_clustering(current_2d_tsne, Mixed_y_labels,
+                                    parameters=params_list[array_idx],
+                                    ground_truth=True, ax=axes[col_idx],
+                                    add_gt_prd_flag = False)
+                else:
+                    plot_clustering(current_2d_tsne, Mixed_y_labels,
+                                    parameters=params_list[array_idx],
+                                    ground_truth=True, ax=axes[row_idx, col_idx],
+                                    add_gt_prd_flag = False)
 
         current_fig_path = output_folder_path.joinpath(f'{run_id}-{figure_num}.png') 
 
@@ -696,12 +908,14 @@ def estimate_pca_n(data):
     num_components_threshold = np.argmax(cumulative_variance_ratio >= threshold) + 1
 
     # Rule 2: Scree Plot
-    plt.figure(figsize=(12, 6))
-    plt.plot(range(1, len(pca.explained_variance_ratio_) + 1), pca.explained_variance_ratio_, marker='o', linestyle='--')
-    plt.xlabel('Number of Components')
-    plt.ylabel('Explained Variance Ratio')
-    plt.title('Scree Plot')
-    plt.grid(True)
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(range(1, len(pca.explained_variance_ratio_) + 1), pca.explained_variance_ratio_, marker='o', linestyle='--')
+    ax.set_xlabel('Number of Components')
+    ax.set_ylabel('Explained Variance Ratio')
+    fig.suptitle('Elbow Plot')
+    fig.gca().grid(True)
+    # fig.add_gridspec(True)
+    plt.tight_layout()
     plt.show()
 
     # Rule 3: Kaiser's Rule
@@ -711,7 +925,7 @@ def estimate_pca_n(data):
     print("Number of components selected by Scree Plot (Rule 2):", 2)  # Manually choose the number of components from the plot
     print("Number of components selected by Kaiser's Rule (Rule 3):", num_components_kaiser)
 
-def run_pca(data, n_components=3):
+def run_pca(data, n_components=16):
 
     # # Step 1: Standardize the data (mean=0, std=1)
     # mean = np.mean(data, axis=0)
@@ -721,9 +935,27 @@ def run_pca(data, n_components=3):
     data_standardized = StandardScaler().fit_transform(data)
 
     # Numbers to try: 16, 75, 108
-    pca_selected = PCA(n_components=16)
+    pca_selected = PCA(n_components=n_components)
     # Fit the PCA model to the standardized data with the selected number of components
-    return pca_selected.fit_transform(data_standardized)
+    trained_data =  pca_selected.fit_transform(data_standardized)
+    return trained_data
+
+
+def run_pca_inference(train_data, test_data, n_components=16):
+
+    data_standardized = StandardScaler().fit_transform(train_data)
+    data_std_test = StandardScaler().fit_transform(test_data)
+
+    pca_selected = PCA(n_components=n_components)
+
+    # Fit the PCA model to the standardized data with the selected number of components
+    train_data_pca =  pca_selected.fit_transform(data_standardized)
+
+    # Predict
+    test_data_pca = pca_selected.transform(data_std_test)
+
+    return train_data_pca, test_data_pca
+
 
 def store_probs(array1, array2, output_folder_path, run_id = 'current'):
     # Combine the arrays into a list of rows
@@ -756,3 +988,23 @@ def check_0_clusters(samples_prob, samples_label, verbose = False):
         return True
     else:
         return False
+
+
+def organize_samples_by_label(X_test_paths, samples_label, samples_prob, wav_chunks_output_path):
+    # Loop over all paths in X_test_paths
+    for idx, path in enumerate(X_test_paths):
+        # Create a Path object
+        path_obj = Path(path)
+        
+        # Get the label for the current sample
+        label = str(samples_label[idx])
+        
+        # Create a new directory path for the label if it doesn't exist
+        new_dir = wav_chunks_output_path.joinpath(label)
+        new_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create a new path for the file in the new directory
+        new_path = new_dir / path_obj.name 
+        
+        # Copy the file to the new directory
+        shutil.copy(path, new_path)

@@ -6,6 +6,7 @@ import os
 from generator.SR_Dataset import *
 import pandas as pd
 import re
+import sys
 from generator.DB_wav_reader import read_feats_structure_aolme
 from model.model import background_resnet
 
@@ -25,7 +26,7 @@ def get_DB_aolme(feat_dir):
     DB = pd.DataFrame()
     for idx, i in enumerate(feat_dir):
         # print(f'This is the ith in get_DB" {i}')
-        tmp_DB, _, _ = read_feats_structure_aolme(i, idx)
+        tmp_DB = read_feats_structure_aolme(i, idx)
         DB = DB.append(tmp_DB, ignore_index=True)
 
     return DB
@@ -44,7 +45,7 @@ def load_model(log_dir, cp_num, n_classes, use_cuda = True):
     return model
 
 
-def get_d_vector(filename, model, use_cuda = True):
+def get_d_vector(filename, model, use_cuda = True, norm_flag = False):
     input, label = test_input_load(filename)
     label = torch.tensor([1]).cuda()
 
@@ -60,7 +61,13 @@ def get_d_vector(filename, model, use_cuda = True):
 
         activation = model(input) #scoring function is cosine similarity so, you don't need to normalization
 
-    return activation, label
+        if norm_flag:
+            result_tensor = F.normalize(activation, p=2.0, dim=-1)
+            print(f'd-vector normalized')
+        else:
+            result_tensor = activation
+
+    return result_tensor, label
 
 
 def normalize_frames(m, Scale=False):
@@ -78,25 +85,48 @@ def test_input_load(filename):
 
     return input, label
 
-def d_vector_dict_labels_aolme(test_DB, model):
+
+def convert_feat_to_wav_path(filename):
+    regex = r"\/test\/feat\/"
+
+    subst = "/test/wav/"
+
+    # Count the number of occurrences of the regex pattern
+    occurrences_count = len(re.findall(regex, filename))
+    # You can manually specify the number of replacements by changing the 4th argument
+
+    if occurrences_count == 0:
+        print('Error: No replacement')
+        sys.exit(f'No replacement for {filename}')
+    elif occurrences_count > 1:
+        print('Error: More than one replacement')
+        sys.exit(f'More than one replacement for {filename}')
+
+    result = re.sub(regex, subst, filename)
+
+    result = result.replace('.pkl', '.wav')
+
+    return result
+
+def d_vector_dict_labels_aolme(test_DB, model, norm_flag = False):
     # Get enroll d-vector and test d-vector per utterance
     label_dict = {}
     total_len = len(test_DB)
     with torch.no_grad():
         for i in range(len(test_DB)):
             tmp_filename = test_DB['filename'][i]
-            tmp_dict_entry = test_DB['filename']
-            # print(f'test_db: {tmp_dict_entry}')
-            enroll_embedding, _ = get_d_vector(tmp_filename, model)
+            enroll_embedding, _ = get_d_vector(tmp_filename, model, norm_flag=norm_flag)
             key_filename = os.sep.join(tmp_filename.split(os.sep)[-2:])  # ex) 'id10042/6D67SnCYY34/00001.pkl'
             key_filename = os.path.splitext(key_filename)[0] + '.wav'  # ex) 'id10042/6D67SnCYY34/00001.wav'
             speakerID_clusters = extract_label(key_filename)
 
+            # Convert tmp_filename to wav path
+            current_wav_path = convert_feat_to_wav_path(tmp_filename) 
+
             if speakerID_clusters in label_dict:
-                # Label already there, append tensor -> shape [1, 256]
-                label_dict[speakerID_clusters] = torch.cat((label_dict[speakerID_clusters], enroll_embedding), dim=0)
+                label_dict[speakerID_clusters].append((enroll_embedding, current_wav_path))
             else:
-                label_dict[speakerID_clusters] = enroll_embedding 
+                label_dict[speakerID_clusters] = [(enroll_embedding, current_wav_path)]
 
             # print("[%s/%s] Embedding for \"%s\" is saved" % (str(i).zfill(len(str(total_len))), total_len, speakerID_clusters))
 

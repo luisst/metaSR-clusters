@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = '0' 
 
-test_feat_dir = constants.CENTROID_FEAT_AOLME_TTS2_NOISE
+test_feat_dir = constants.CHUNKS_FEAT_STG2_IRMA
 
 # t-sne perplexity 
 c_options = [5, 10, 15, 20, 30, 40, 50]
@@ -29,8 +29,8 @@ c_options = [5, 10, 15, 20, 30, 40, 50]
 # t-sne n_iter
 d_options = [500, 800, 1200, 5000]
 
-noise_type = 'TTS2-200'
-dataset_type = 'tsneGT_Irma'
+noise_type = 'none'
+dataset_type = 'tsneGrid_pcaNone_chunks'
 
 percentage_test = 0.0
 remove_outliers = 'None'
@@ -40,27 +40,30 @@ store_probs_flag = False
 
 plot_mode = 'store' # 'show' or 'show_store'
 
-dataset_dvectors = d_vectors_pretrained_model([test_feat_dir], percentage_test, 
-                                            remove_outliers, use_cuda=True)
+dataset_dvectors = d_vectors_pretrained_model([test_feat_dir], percentage_test,
+                                            remove_outliers,
+                                            return_paths_flag = True,
+                                            norm_flag = True,
+                                            use_cuda=True)
 
 X_train = dataset_dvectors[0]
 y_train = dataset_dvectors[1]
-X_test = dataset_dvectors[2]
-y_test = dataset_dvectors[3]
-speaker_labels_dict_train = dataset_dvectors[4]
+X_train_paths = dataset_dvectors[2]
+X_test = dataset_dvectors[3]
+y_test = dataset_dvectors[4]
+X_test_paths = dataset_dvectors[5]
+speaker_labels_dict_train = dataset_dvectors[6]
 
 X_test = X_test.cpu().numpy()
 X_train = X_train.cpu().numpy()
 
-Mixed_X_data = np.concatenate((X_train, X_test), axis=0)
-Mixed_y_labels = np.concatenate((y_train, y_test), axis=0)
+Mixed_X_data = X_train
+Mixed_y_labels = y_train
 
-# Store the data in a file using pickle
+
 X_data_and_labels = [Mixed_X_data, Mixed_y_labels]
-with open("X_data_and_labels.pickle", "wb") as file:
+with open(f'tsneGrid_{dataset_type}_noise{noise_type}.pickle', "wb") as file:
     pickle.dump(X_data_and_labels, file)
-
-
 
 run_id = f'{dataset_type}_{noise_type}'
 
@@ -76,11 +79,14 @@ for c, d in product(c_options, d_options):
     tsne_param_list.append({'per': c, 'n':d})
 
     tot_start = time.time()
-    with open("X_data_and_labels.pickle", "rb") as file:
+    with open(f'tsneGrid_{dataset_type}_noise{noise_type}.pickle', "rb") as file:
         X_data_and_labels = pickle.load(file)
     Mixed_X_data, Mixed_y_labels = X_data_and_labels
 
-    current_df = gen_tsne(Mixed_X_data, Mixed_y_labels, perplexity_val = perplexity_val, n_iter = n_iter)
+    current_df = gen_tsne(Mixed_X_data, Mixed_y_labels,
+                          perplexity_val = perplexity_val,
+                          n_iter = n_iter,
+                          n_comp = 0)
     tsne_labels_list.append(current_df)
 
 
@@ -92,7 +98,7 @@ output_folder_path.mkdir(parents=True, exist_ok=True)
 
 
 plot_clustering_subfig(tsne_labels_list, Mixed_y_labels,
-                        2, 4,
+                        1, 2,
                         tsne_param_list,
                         run_id, output_folder_path,
                         plot_mode)
