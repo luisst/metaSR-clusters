@@ -11,8 +11,11 @@ from generator.DB_wav_reader import read_feats_structure_aolme
 from model.model import background_resnet
 
 
-def extract_label(filename):
+def extract_label(filename, samples_flag=True):
     # match = re.search(r'(?<=segment_\d\d\d_)[A-Za-z0-9]+(?=_\d+\.\w\w\w)|(?<=group_background_)[A-Za-z0-9]+(?=_\d+\.\w\w\w)', filename)
+
+    if samples_flag:
+        return '0'
 
     match = re.search(r'[a-zA-Z0-9]+?(?=_\d+\.\w\w\w)', filename)
 
@@ -69,6 +72,34 @@ def get_d_vector(filename, model, use_cuda = True, norm_flag = False):
 
     return result_tensor, label
 
+def get_d_vector_aolme(filename, model, use_cuda = True, norm_flag = False):
+
+    with open(filename, 'rb') as f:
+        feat_and_label = pickle.load(f)
+        
+    input = feat_and_label['feat'] # size : (n_frames, dim=40)
+    label = feat_and_label['label']
+
+    label = torch.tensor([1]).cuda()
+
+    input = normalize_frames(input, Scale=c.USE_SCALE)
+    TT = ToTensorTestInput()  # torch tensor:(1, n_dims, n_frames)
+    input = TT(input)  # size : (n_frames, 1, n_filter, T)
+    input = Variable(input)
+    with torch.no_grad():
+        if use_cuda:
+            #load gpu
+            input = input.cuda()
+            label = label.cuda()
+
+        activation = model(input) #scoring function is cosine similarity so, you don't need to normalization
+
+        if norm_flag:
+            result_tensor = F.normalize(activation, p=2.0, dim=-1)
+        else:
+            result_tensor = activation
+
+    return result_tensor, label
 
 def normalize_frames(m, Scale=False):
     if Scale:

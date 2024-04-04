@@ -1,88 +1,18 @@
-import os
 import numpy as np
 import constants as c
+import os
 import pickle # For python3
+from pathlib import Path
 from python_speech_features import *
-from voxceleb_wav_reader import read_voxceleb_structure, read_aolme_structure
+import argparse
+import pdb
 
 import scipy.io as sio
 import scipy.io.wavfile
 
+def extract_MFB_aolme(current_input_path, output_feats_folder):
 
-def convert_wav_to_MFB_name(filename, mode):
-    """
-    Converts the wav dir (in DB folder) to feat dir(in feat folder)
-    ex) input         : '.../voxceleb/voxceleb1/dev/wav/id10918/oT62hV9eoHo/00001.wav'
-    output_foldername : '.../voxceleb/voxceleb1/dev/feat/train_logfbank_nfilt40/id10918/oT62hV9eoHo'
-    output_filename   : '.../voxceleb/voxceleb1/dev/feat/train_logfbank_nfilt40/id10918/oT62hV9eoHo/00001.pkl'
-    """
-    data_type = filename.split('/')[-6]
-    filename_only = filename.split('/')[-1].replace('.wav','.pkl') # ex) 00001.pkl (pickle format)
-    uri_folder = filename.split('/')[-2]                           # ex) oT62hV9eoHo
-    speaker_folder = filename.split('/')[-3]                       # ex) id10918
-    
-    if c.USE_LOGSCALE == True:
-        feature_type = 'logfbank'
-    elif c.USE_LOGSCALE == False:
-        feature_type = 'fbank'
-
-    if mode == 'train':
-        # ex) feat/train_logfbank_nfilt40
-        if c.USE_DELTA == True:
-            root_folder = 'train_' + feature_type + '_nfilt' + str(c.FILTER_BANK) + '_del2'
-        else:
-            root_folder = 'train_' + feature_type + '_nfilt' + str(c.FILTER_BANK)
-
-        feat_only_dir = c.TRAIN_FEAT_VOX2 if data_type == 'voxceleb2' else c.TRAIN_FEAT_VOX1
-        output_foldername = os.path.join(feat_only_dir, root_folder, speaker_folder, uri_folder)
-        
-    elif mode == 'test':
-        # ex) feat/test_logfbank_nfilt40
-        if c.USE_DELTA == True:
-            root_folder = 'test_' + feature_type + '_nfilt' + str(c.FILTER_BANK) + '_del2'
-        else:
-            root_folder = 'test_' + feature_type + '_nfilt' + str(c.FILTER_BANK)
-        output_foldername = os.path.join(c.TEST_FEAT_VOX1, root_folder, speaker_folder, uri_folder)
-        
-    output_filename = os.path.join(output_foldername, filename_only)
-
-    return output_foldername, output_filename
-
-
-def convert_wav_to_MFB_name_aolme(filename, output_folder_path, mode):
-    """
-    Converts the wav dir (in DB folder) to feat dir(in feat folder)
-    ex) input         : '.../voxceleb/voxceleb1/dev/wav/id10918/oT62hV9eoHo/00001.wav'
-    output_foldername : '.../voxceleb/voxceleb1/dev/feat/train_logfbank_nfilt40/id10918/oT62hV9eoHo'
-    output_filename   : '.../voxceleb/voxceleb1/dev/feat/train_logfbank_nfilt40/id10918/oT62hV9eoHo/00001.pkl'
-    """
-    filename_only = filename.split('/')[-1].replace('.wav','.pkl') # ex) 00001.pkl (pickle format)
-    speaker_folder = filename.split('/')[-2]                       # ex) id10918
-    
-    if c.USE_LOGSCALE == True:
-        feature_type = 'logfbank'
-    elif c.USE_LOGSCALE == False:
-        feature_type = 'fbank'
-
-        
-    # # ex) feat/test_logfbank_nfilt40
-    # if c.USE_DELTA == True:
-    #     root_folder = 'test_' + feature_type + '_nfilt' + str(c.FILTER_BANK) + '_del2'
-    # else:
-    #     root_folder = 'test_' + feature_type + '_nfilt' + str(c.FILTER_BANK)
-    
-    root_folder = 'feat'
-
-    output_foldername = os.path.join(output_folder_path, root_folder, speaker_folder)
-        
-    output_filename = os.path.join(output_foldername, filename_only)
-
-    return output_foldername, output_filename
-
-
-def extract_MFB(filename, mode):
-
-    sr, audio = sio.wavfile.read(filename)
+    sr, audio = sio.wavfile.read(current_input_path)
     features, energies = fbank(audio, samplerate=c.SAMPLE_RATE, nfilt=c.FILTER_BANK, winlen=0.025, winfunc=np.hamming)
 
     if c.USE_LOGSCALE:
@@ -104,58 +34,14 @@ def extract_MFB(filename, mode):
     else:
         total_features = features
 
-    speaker_folder = filename.split('/')[-3]
-    output_foldername, output_filename = convert_wav_to_MFB_name(filename, mode=mode)
-    speaker_label = speaker_folder # set label as a folder name (recommended). Convert this to speaker index when training
-    feat_and_label = {'feat':total_features, 'label':speaker_label}
 
-    if not os.path.exists(output_foldername):
-        os.makedirs(output_foldername)
+    curent_output_path = output_feats_folder / (current_input_path.stem + '.pkl')
 
-    if os.path.isfile(output_filename) == 1:
-        print("\"" + '/'.join(output_filename.split('/')[-3:]) + "\"" + " file already extracted!")
-    else:
-        with open(output_filename, 'wb') as fp:
-            pickle.dump(feat_and_label, fp)
+    ## TO-DO: Save only features, no label
+    feat_and_label = {'feat':total_features, 'label':0}
 
-
-def extract_MFB_aolme(filename, dataroot_dir, mode):
-
-    sr, audio = sio.wavfile.read(filename)
-    features, energies = fbank(audio, samplerate=c.SAMPLE_RATE, nfilt=c.FILTER_BANK, winlen=0.025, winfunc=np.hamming)
-
-    if c.USE_LOGSCALE:
-        features = 20 * np.log10(np.maximum(features,1e-5))
-        
-    if c.USE_DELTA:
-        delta_1 = delta(features, N=1)
-        delta_2 = delta(delta_1, N=1)
-        
-        features = normalize_frames(features, Scale=c.USE_SCALE)
-        delta_1 = normalize_frames(delta_1, Scale=c.USE_SCALE)
-        delta_2 = normalize_frames(delta_2, Scale=c.USE_SCALE)
-        features = np.hstack([features, delta_1, delta_2])
-
-    if c.USE_NORM:
-        features = normalize_frames(features, Scale=c.USE_SCALE)
-        total_features = features
-
-    else:
-        total_features = features
-
-    speaker_folder = filename.split('/')[-2]
-    output_foldername, output_filename = convert_wav_to_MFB_name_aolme(filename, dataroot_dir, mode=mode)
-    speaker_label = speaker_folder # set label as a folder name (recommended). Convert this to speaker index when training
-    feat_and_label = {'feat':total_features, 'label':speaker_label}
-
-    if not os.path.exists(output_foldername):
-        os.makedirs(output_foldername)
-
-    if os.path.isfile(output_filename) == 1:
-        print("\"" + '/'.join(output_filename.split('/')[-3:]) + "\"" + " file already extracted!")
-    else:
-        with open(output_filename, 'wb') as fp:
-            pickle.dump(feat_and_label, fp)
+    with open(curent_output_path, 'wb') as fp:
+        pickle.dump(feat_and_label, fp)
 
 
 def normalize_frames(m,Scale=False):
@@ -165,29 +51,24 @@ def normalize_frames(m,Scale=False):
         return (m - np.mean(m, axis=0))
 
 
-class mode_error(Exception):
-    def __str__(self):
-        return "Wrong mode (type 'train' or 'test')"
+parser = argparse.ArgumentParser()
 
-def feat_extraction(dataroot_dir, mode):
-    # DB = read_voxceleb_structure(dataroot_dir, data_type='wavs')
-    DB = read_aolme_structure(dataroot_dir, data_type='wavs')
+parser.add_argument('wavs_folder', help='Path to the folder containing the WAV files')
+parser.add_argument('output_feats_folder', help='Path to the folder to save the extracted features')
 
+args = parser.parse_args()
 
-    if (mode != 'train') and (mode != 'test'):
-      raise mode_error
-    count = 0
-    
-    for i in range(len(DB)):
-        extract_MFB_aolme(DB['filename'][i], dataroot_dir, mode=mode)
-        count = count + 1
-        filename = DB['filename'][i]
-        print("feature extraction (%s DB). step : %d, file : \"%s\"" %(mode, count, '/'.join(filename.split('/')[-3:])))
+wavs_folder = Path(args.wavs_folder)
+output_feats_folder = Path(args.output_feats_folder)
 
-    print("-"*20 + " Feature extraction done " + "-"*20)
+list_of_wavs = sorted(list(wavs_folder.glob('*.wav')))
 
+# Print the number of files to process
+print(f'Number of files to process: {len(list_of_wavs)}')
 
-if __name__ == '__main__':
-    # feat_extraction(dataroot_dir=c.TRAIN_AUDIO_VOX1, mode='train')
-    feat_extraction(dataroot_dir=c.CHUNKS_AUDIO_STG2_AZURE_IRMA, mode='test')
-    # feat_extraction(dataroot_dir=c.CENTROID_AUDIO_AOLME_NOISE, mode='test')    
+count = 0
+
+for current_wav_path in list_of_wavs:
+    extract_MFB_aolme(current_wav_path, output_feats_folder)
+    count = count + 1
+    print(f'{count} - feature extraction: {current_wav_path.name}')

@@ -54,9 +54,16 @@ CHUNKS_FEAT_STG2_IRMA ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/chunks_s
 CHUNKS_AUDIO_STG2_SHAS_IRMA ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/shas_chunks_stg3_Testset_Irma/test/wav'
 CHUNKS_FEAT_STG2_SHAS_IRMA ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/shas_chunks_stg3_Testset_Irma/test/feat'
 
+CHUNKS_AUDIO_STG2_SHAS_ALLAN ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/shas_chunks_stg3_Testset_Allan/test/wav'
+CHUNKS_FEAT_STG2_SHAS_ALLAN ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/shas_chunks_stg3_Testset_Allan/test/feat'
+
+CHUNKS_AUDIO_STG2_SHAS_LIZ ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/shas_chunks_stg3_Testset_Liz/test/wav'
+CHUNKS_FEAT_STG2_SHAS_LIZ ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/shas_chunks_stg3_Testset_Liz/test/feat'
+
 
 CHUNKS_AUDIO_STG2_AZURE_IRMA ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/azure_chunks_stg3_Testset_Irma/test/wav'
 CHUNKS_FEAT_STG2_AZURE_IRMA ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/azure_chunks_stg3_Testset_Irma/test/feat'
+
 
 CENTROID_AUDIO_AOLME_TTS2ct_NOISE ='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_gamma_all_Irma_noisesTTS2ct/test/wav'
 CENTROID_FEAT_AOLME_TTS2ct_NOISE='/home/luis/Dropbox/DATASETS_AUDIO/SD_test_pairs/centroid_gamma_all_Irma_noisesTTS2ct/test/feat'

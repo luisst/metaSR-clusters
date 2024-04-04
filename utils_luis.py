@@ -20,7 +20,7 @@ import matplotlib.lines as mlines
 
 
 import torch.nn.functional as F
-from utils_metaSR import get_DB_aolme, load_model, d_vector_dict_labels_aolme 
+from utils_metaSR import load_model, get_d_vector_aolme, extract_label 
 
 
 def filter_test_values(input_list):
@@ -398,22 +398,57 @@ def generate_prototype(x_train, y_train, verbose=False):
 
     return prototype_tensor, prototype_labels
 
-def d_vectors_pretrained_model(test_feat_dir, percentage_test, remove_outliers,
+
+def d_vector_dict_lbls(list_of_feats, model, 
+                       list_of_wavs,
+                       norm_flag = False, samples_flag = True):
+    
+    if len(list_of_feats) != len(list_of_wavs):
+        sys.exit('Error! Length of list_of_feats and wavs_paths are not the same')
+
+    # Get enroll d-vector and test d-vector per utterance
+    label_dict = {}
+    with torch.no_grad():
+        for path_idx, current_feat_path in enumerate(list_of_feats):
+            enroll_embedding, _ = get_d_vector_aolme(current_feat_path, model, norm_flag=norm_flag)
+            speakerID_clusters = extract_label(current_feat_path.name, samples_flag=samples_flag)
+
+            # Get the current wav path
+            current_wav_path = list_of_wavs[path_idx]
+            if current_wav_path.stem != current_feat_path.stem:
+                sys.exit('Error! Wav and Feat file names do not match')
+
+
+            if speakerID_clusters in label_dict:
+                label_dict[speakerID_clusters].append((enroll_embedding, current_wav_path))
+            else:
+                label_dict[speakerID_clusters] = [(enroll_embedding, current_wav_path)]
+
+    return label_dict
+
+def d_vectors_pretrained_model(feats_folder, percentage_test, remove_outliers,
+                               wavs_paths,
                                return_paths_flag = False,
                                norm_flag = False,
-                               use_cuda=True, verbose = False):
+                               use_cuda=True,
+                               samples_flag=True , verbose = False):
 
-    test_db = get_DB_aolme(test_feat_dir)
+    list_of_feats = sorted(list(feats_folder.glob('*.pkl')))
+    list_of_wavs = sorted(list(wavs_paths.glob('*.wav')))
     n_classes = 5994 # from trained with vox1
     cp_num = 100
 
-    log_dir = 'saved_model/baseline_' + str(0).zfill(3)
+    log_dir = 'saved_model/baseline_000'
+    pwd_path = Path.cwd()
+    print(f'Current working directory: {pwd_path}')
     
     # load model from checkpoint
     model = load_model(log_dir, cp_num, n_classes, True)
 
 
-    dict_embeddings = d_vector_dict_labels_aolme(test_db, model, norm_flag=norm_flag)
+    dict_embeddings = d_vector_dict_lbls(list_of_feats, model,
+                                         list_of_wavs,
+                                         norm_flag=norm_flag, samples_flag=samples_flag)
 
 
     return separate_dict_embeddings(dict_embeddings, 

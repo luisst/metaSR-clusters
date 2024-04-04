@@ -5,7 +5,11 @@ import constants
 import numpy as np
 import hdbscan
 from pathlib import Path
+import sys
 import warnings
+import argparse
+import re
+
 warnings.filterwarnings('ignore', category=FutureWarning)
 
 from utils_luis import gen_tsne, d_vectors_pretrained_model, \
@@ -19,10 +23,54 @@ warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = '0' 
 
-test_feat_dir = constants.CHUNKS_FEAT_STG2_SHAS_ALLAN
+min_cluster_size = 0
+pca_elem = 0
+hdb_mode = None
+min_samples = 0
 
-noise_type = 'none'
-dataset_type = 'run_chunks_shas_allan_stg2'
+# feats_folder = Path('/home/luis/Dropbox/DATASETS_AUDIO/VAD_aolme/EXP-001-Liz/TestSet_AOLME_SHAS/Testset_stage3/feats_files')
+# wavs_folder = Path('/home/luis/Dropbox/DATASETS_AUDIO/VAD_aolme/EXP-001-Liz/TestSet_AOLME_SHAS/Testset_stage2/wav_chunks')
+# output_folder_path = Path('/home/luis/Dropbox/DATASETS_AUDIO/VAD_aolme/EXP-001-Liz/TestSet_AOLME_SHAS/Testset_stage3/HDBSCAN_pred_output')
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('input_feats_folder', help='Path to the folder to load the extracted features')
+parser.add_argument('wavs_folder', help='Path to the folder to input wavs paths')
+parser.add_argument('output_pred_folder', help='Path to the folder to store the predictions')
+parser.add_argument('run_name', help='')
+parser.add_argument('exp_name', help='')
+
+args = parser.parse_args()
+
+feats_folder = Path(args.input_feats_folder)
+wavs_folder = Path(args.wavs_folder)
+output_folder_path = Path(args.output_pred_folder)
+
+run_name = args.run_name
+Exp_name = args.exp_name
+
+print(f'run_name: {run_name}')
+
+# #RUN_NAME="pca${pca_elem}_mcs${min_cluster_size}_ms${min_samples}_${hdb_mode}"
+# #example "pca0_mcs10_ms5_eom"
+
+pattern = r"pca(\d+)_mcs(\d+)_ms(\d+)_(\w+)"
+match = re.match(pattern, run_name)
+
+if match:
+    pca_elem = int(match.group(1))
+    min_cluster_size = int(match.group(2))
+    min_samples = int(match.group(3))
+    hdb_mode = match.group(4)
+else:
+    sys.exit("Invalid run_name format")
+
+# Print the extracted values
+print(f"pca_elem: {pca_elem}")
+print(f"min_cluster_size: {min_cluster_size}")
+print(f"min_samples: {min_samples}")
+print(f"hdb_mode: {hdb_mode}")
+
 
 percentage_test = 0.0
 remove_outliers = 'None'
@@ -32,11 +80,13 @@ store_probs_flag = False
 
 plot_mode = 'store' # 'show' or 'show_store'
 
-dataset_dvectors = d_vectors_pretrained_model([test_feat_dir], percentage_test,
+dataset_dvectors = d_vectors_pretrained_model(feats_folder, percentage_test,
                                             remove_outliers,
+                                            wavs_folder,
                                             return_paths_flag = True,
                                             norm_flag = True,
-                                            use_cuda=True)
+                                            use_cuda=True,
+                                            samples_flag=True)
 
 X_train = dataset_dvectors[0]
 y_train = dataset_dvectors[1]
@@ -52,22 +102,14 @@ X_train = X_train.cpu().numpy()
 Mixed_X_data = X_train
 Mixed_y_labels = y_train
 
-output_folder_path = Path(test_feat_dir).parent.joinpath(f'{dataset_type}_{noise_type}')
-output_folder_path.mkdir(parents=True, exist_ok=True)
 
-
-min_cluster_size = 25
-pca_elem = None
-hdb_mode = 'eom' 
-min_samples = 5
-
-run_id = f'{dataset_type}_minCL{min_cluster_size}_minSM{min_samples}_{noise_type}_{hdb_mode}'
+run_id = f'{Exp_name}_minCL{min_cluster_size}_minSM{min_samples}_{hdb_mode}'
 
 hdb_data_input = None
-if pca_elem != None or pca_elem == 0:
-    hdb_data_input = run_pca(Mixed_X_data, pca_elem)
+if pca_elem == None or pca_elem == 0:
+    hdb_data_input = Mixed_X_data
 else:
-    hdb_data_input = Mixed_X_data 
+    hdb_data_input = run_pca(Mixed_X_data, pca_elem) 
 
 
 ### try cluster_selection_method = 'leaf' | default = 'eom'
