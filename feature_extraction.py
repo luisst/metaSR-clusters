@@ -4,8 +4,8 @@ import os
 import pickle # For python3
 from pathlib import Path
 from python_speech_features import *
+import sys
 import argparse
-import pdb
 
 import scipy.io as sio
 import scipy.io.wavfile
@@ -51,10 +51,13 @@ def normalize_frames(m,Scale=False):
         return (m - np.mean(m, axis=0))
 
 
+input_wavs_folder_ex = Path('data/processed_data/')
+output_feats_folder_ex = Path('data/processed_data/feats/')
+
 parser = argparse.ArgumentParser()
 
-parser.add_argument('wavs_folder', help='Path to the folder containing the WAV files')
-parser.add_argument('output_feats_folder', help='Path to the folder to save the extracted features')
+parser.add_argument('--wavs_folder', default=input_wavs_folder_ex , help='Path to the folder containing the WAV files')
+parser.add_argument('--output_feats_folder', default=output_feats_folder_ex, help='Path to the folder to save the extracted features')
 
 args = parser.parse_args()
 
@@ -65,6 +68,9 @@ list_of_wavs = sorted(list(wavs_folder.glob('*.wav')))
 
 # Print the number of files to process
 print(f'Number of files to process: {len(list_of_wavs)}')
+
+if len(list_of_wavs) == 0:
+    sys.exit("No files to process")
 
 count = 0
 

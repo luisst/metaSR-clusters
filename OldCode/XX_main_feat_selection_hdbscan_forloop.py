@@ -116,6 +116,7 @@ dataset_dvectors = d_vectors_pretrained_model([test_feat_dir], percentage_test,
                                             remove_outliers,
                                             return_paths_flag = True,
                                             norm_flag = True,
+                                            samples_flag=False,
                                             use_cuda=True)
 
 X_train = dataset_dvectors[0]

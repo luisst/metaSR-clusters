@@ -1038,8 +1038,110 @@ def organize_samples_by_label(X_test_paths, samples_label, samples_prob, wav_chu
         new_dir = wav_chunks_output_path.joinpath(label)
         new_dir.mkdir(parents=True, exist_ok=True)
         
+        # Create a new name for the file with the prob appended
+        new_name = f"{path_obj.stem}_{samples_prob[idx]:.2f}{path_obj.suffix}" 
+
         # Create a new path for the file in the new directory
-        new_path = new_dir / path_obj.name 
+        new_path = new_dir / new_name 
         
         # Copy the file to the new directory
         shutil.copy(path, new_path)
+
+
+def find_connected_nodes(node, graph, visited=None):
+    if visited is None:
+        visited = set()
+
+    # Check if the node is in the graph keys or values
+    if node not in visited:
+        visited.add(node)
+        if node in graph:
+            for connected_node in graph[node]:
+                find_connected_nodes(connected_node, graph, visited)
+        for key, value in graph.items():
+            if node in value:
+                find_connected_nodes(key, graph, visited)
+    return list(visited)
+
+
+def copy_arrays_to_folder(arrays, indices, folder_path):
+
+    # Create the subfolder using pathlib
+    folder_path.mkdir(parents=True, exist_ok=True)
+
+    # Loop over the indices and copy each WAV file
+    for idx in indices:
+        if idx < len(arrays):
+            file_path = arrays[idx]
+            new_filename = Path(file_path).stem + '_9.99.' + Path(file_path).suffix
+
+            destination_path = folder_path / new_filename
+
+            shutil.copy(file_path, destination_path)
+            print(f"{folder_path.name}: Copied {new_filename}")
+        else:
+            print(f"\t{folder_path.name}: Index {idx} is out of range.")
+
+            
+def find_key_of_longest_list(input_dict):
+    # Initialize variables to keep track of the longest list and its key
+    max_length = -1
+    key_of_longest_list = None
+
+    # Iterate over all key-value pairs in the dictionary
+    for key, value in input_dict.items():
+        # Check if the current list is longer than the longest list found so far
+        if len(value) > max_length:
+            max_length = len(value)
+            key_of_longest_list = key
+
+    return key_of_longest_list, max_length
+
+
+def get_groups(my_nodes_dict):
+    def dfs(node):
+        if node not in visited:
+            visited.add(node)
+            count[0] += 1
+            for neighbor in my_nodes_dict[node]:
+                dfs(neighbor)
+
+    visited = set()
+    groups = []
+    # Create a copy of the dictionary keys before iterating over them
+    nodes_copy = list(my_nodes_dict.keys())
+    for node in nodes_copy:
+        if node not in visited:
+            count = [1]
+            dfs(node)
+            groups.append((node, count[0]))
+    return groups
+
+
+def remove_elements(list1, list2):
+    return [item for item in list1 if item not in list2]
+
+
+def get_groups_alt(my_nodes_dict, verbose = False):
+
+    candidates_nodes = list(my_nodes_dict.keys())
+    my_groups = []
+
+    for current_node in my_nodes_dict.keys():
+
+        if verbose:
+            print(f'len: {len(candidates_nodes)}')
+
+        if current_node not in candidates_nodes:
+            if verbose:
+                print(f'\tNode {current_node} already processed')
+            continue
+
+        connected_nodes = find_connected_nodes(current_node, my_nodes_dict)
+
+        candidates_nodes = remove_elements(candidates_nodes, connected_nodes)   
+        candidates_nodes.insert(0, current_node)
+
+        my_groups.append((current_node, len(connected_nodes)))
+
+    return my_groups
