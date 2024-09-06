@@ -49,6 +49,8 @@ output_folder_path_ex = 'irma_singleNodes'
 run_params_ex = 'pca16_mcs5_ms5_leaf'
 exp_name_ex = 'TestAO-Irmast4_SHAS_DV_feats'
 
+nodes_th_ex = 4
+
 
 parser = argparse.ArgumentParser()
 
@@ -56,6 +58,7 @@ parser.add_argument('--input_feats_pickle', default=feats_pickle_ex, help='Path 
 parser.add_argument('--output_pred_folder', type=valid_path, default=output_folder_path_ex, help='Path to the folder to store the predictions')
 parser.add_argument('--run_params', default=run_params_ex, help='string with the HDB-SCAN run name')
 parser.add_argument('--exp_name', default=exp_name_ex, help='string with the experiment name')
+parser.add_argument('--nodes_th', type=int, default=nodes_th_ex, help='Threshold for the number of nodes in a connected component')
 # parser.add_argument('TDA_params', help='string with the Keppler mapper name')
 
 args = parser.parse_args()
@@ -65,6 +68,8 @@ output_folder_path = Path(args.output_pred_folder)
 
 run_params = args.run_params
 Exp_name = args.exp_name
+
+nodes_th = int(args.nodes_th)
 
 with open(f'{feats_pickle_path}.pickle', "rb") as file:
     X_data_and_labels = pickle.load(file)
@@ -133,57 +138,70 @@ mapper.visualize(
 my_nodes_dict = graph['links']
 my_nodes_list = list(graph['nodes'].keys())
 print(f'Node list len: {len(my_nodes_list)}')
+print(f'Node dict len: {len(my_nodes_dict)}')
+print(f'nodes_th: {nodes_th}')
 
 my_representative_nodes = get_groups_alt(my_nodes_dict)
 lbl_idx = 0
-for current_unique_name, current_group_len in my_representative_nodes:
 
-    connected_nodes = find_connected_nodes(current_unique_name, my_nodes_dict)
-    # print(f'\n\nConnected nodes {connected_nodes} ')
+if len(my_representative_nodes) == 0:
+    # sys.exit("Empty 'my_representative_nodes' dictionary. Exiting program. \n Parameters produced no nodes")
+    print(f' >>>>>>>>>>>>>>>>>>>>>>> Empty my_representative_nodes dictionary. \n Parameters produced no connected components')
+else:
+    print(f'len(my_representative_nodes): {len(my_representative_nodes)}')
+    for current_unique_name, current_group_len in my_representative_nodes:
 
-    my_nodes_list = [node for node in my_nodes_list if node not in connected_nodes]
+        connected_nodes = find_connected_nodes(current_unique_name, my_nodes_dict)
+        print(f'\n\nConnected nodes {connected_nodes} \t current_group_len: {current_group_len} \n current_unique_name: {current_unique_name}')
 
-    # if len(connected_nodes) != current_group_len:
-    #     print(f'\t\tfrom groups:{current_group_len}\t len: {len(connected_nodes)}')
+        my_nodes_list = [node for node in my_nodes_list if node not in connected_nodes]
 
-    # Skip the nodes that are connected to less than 4 nodes
-    # if current_group_len < 4:
-    #     continue
+        # if len(connected_nodes) != current_group_len:
+        #     print(f'\t\tfrom groups:{current_group_len}\t len: {len(connected_nodes)}')
 
-    print(f'\n\nProcessing node {current_unique_name} - lbl: {lbl_idx}')
-    print(f'len: {current_group_len} - connected nodes: {len(connected_nodes)}')
+        # Skip the nodes that are connected to less than 4 nodes
+        if current_group_len < nodes_th:
+            print(f'\n\nSkipping node {current_unique_name} - lbl: {lbl_idx}')
+            continue
 
-    my_unique_nodes = []
-    for idx in connected_nodes:
-        my_unique_nodes.extend(graph['nodes'][idx])
+        print(f'\n\nProcessing node {current_unique_name} - lbl: {lbl_idx}')
+        print(f'len: {current_group_len} - connected nodes: {len(connected_nodes)}')
 
-    # print(f'Extended list {my_unique_nodes}')
-    # Remove duplicates
-    my_unique_nodes = list(set(my_unique_nodes))
+        my_unique_nodes = []
+        for idx in connected_nodes:
+            my_unique_nodes.extend(graph['nodes'][idx])
 
-    # print(f'Unique list {my_unique_nodes}')
+        # print(f'Extended list {my_unique_nodes}')
+        # Remove duplicates
+        my_unique_nodes = list(set(my_unique_nodes))
 
-    print(f'\n\nProcessing node {current_unique_name} - lbl: {lbl_idx}')
+        # print(f'Unique list {my_unique_nodes}')
 
-    folder_path = output_folder_path.joinpath(str(lbl_idx))
-    lbl_idx += 1
+        print(f'\n\nProcessing node {current_unique_name} - lbl: {lbl_idx}')
 
-    #Store the wavs from a given indexs
-    copy_arrays_to_folder(X_train_paths, my_unique_nodes, folder_path)
+        folder_path = output_folder_path.joinpath(str(lbl_idx))
+        lbl_idx += 1
+
+        #Store the wavs from a given indexs
+        copy_arrays_to_folder(X_train_paths, my_unique_nodes, folder_path)
 
 print(f'\n\n\tNumber of Connected Components: {lbl_idx -1}')
-print(f'\tProcessing single nodes {len(my_nodes_list)}\n\n')
 
-for single_node in my_nodes_list:
-    print(f'\n\nProcessing single node {single_node} - lbl: {lbl_idx}')
+# Process the single nodes only if threshold is 1
+if nodes_th == 1: 
+    print(f'\tProcessing single nodes {len(my_nodes_list)}\n\n')
+    for single_node in my_nodes_list:
+        print(f'\n\nProcessing single node {single_node} - lbl: {lbl_idx}')
 
-    folder_path = output_folder_path.joinpath(str(lbl_idx))
-    lbl_idx += 1
+        folder_path = output_folder_path.joinpath(str(lbl_idx))
+        lbl_idx += 1
 
-    samples_list = graph['nodes'][single_node]
+        samples_list = graph['nodes'][single_node]
 
-    #Store the wavs from a given indexs
-    copy_arrays_to_folder(X_train_paths, samples_list, folder_path)
+        #Store the wavs from a given indexs
+        copy_arrays_to_folder(X_train_paths, samples_list, folder_path)
+elif nodes_th == 0:
+    sys.exit("Invalid nodes_th value. Exiting program. \n Parameters produced no nodes")
 
 # Define the path to save the chart
 current_fig_path = output_folder_path.joinpath(f'{run_id}_chart.png')

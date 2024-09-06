@@ -54,7 +54,6 @@ def copy_arrays_to_folder(arrays, indices, folder_path):
 
     # Loop over the indices and copy each WAV file
     for idx in indices:
-        print(f'Index: {idx} - index type: {type(idx)} | arrays len: {len(arrays)}')
         if idx < len(arrays):
             file_path = arrays[idx]
             new_filename = Path(file_path).stem + '_9.99.' + Path(file_path).suffix

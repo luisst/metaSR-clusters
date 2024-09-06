@@ -1,13 +1,8 @@
 from __future__ import print_function
 import os
-import sys
 import time
 import warnings
 import time
-import constants
-import numpy as np
-import hdbscan
-import pickle
 from pathlib import Path
 from itertools import product
 import warnings
@@ -15,22 +10,19 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 from utils_luis import gen_tsne, d_vectors_pretrained_model, \
                         plot_clustering_subfig
 
-
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = '0' 
 
-test_feat_dir = constants.CHUNKS_FEAT_STG2_IRMA
+min_cluster_size = 0
+pca_elem = 0
+hdb_mode = None
+min_samples = 0
 
-# t-sne perplexity 
-c_options = [5, 10, 15, 20, 30, 40, 50]
-
-# t-sne n_iter
-d_options = [500, 800, 1200, 5000]
-
-noise_type = 'none'
-dataset_type = 'tsneGrid_pcaNone_chunks'
+wavs_folder = Path('/home/luis/Dropbox/DATASETS_AUDIO/Proposal_runs/TestAO-Irmast4/STG_2/STG2_EXP001-SHAS-DVn1/wav_chunks')
+mfcc_folder_path = Path('/home/luis/Dropbox/DATASETS_AUDIO/Proposal_runs/TestAO-Irmast4/STG_2/STG2_EXP001-SHAS-DVn1/MFCC_files')
+output_folder_base = Path('/home/luis/Dropbox/DATASETS_AUDIO/Proposal_runs/TestAO-Irmast4')
 
 percentage_test = 0.0
 remove_outliers = 'None'
@@ -38,13 +30,15 @@ plot_hist_flag = False
 estimate_pca_flag = False
 store_probs_flag = False
 
-plot_mode = 'store' # 'show' or 'show_store'
+plot_mode = 'store'
 
-dataset_dvectors = d_vectors_pretrained_model([test_feat_dir], percentage_test,
+dataset_dvectors = d_vectors_pretrained_model(mfcc_folder_path, percentage_test,
                                             remove_outliers,
+                                            wavs_folder,
                                             return_paths_flag = True,
                                             norm_flag = True,
-                                            use_cuda=True)
+                                            use_cuda=True,
+                                            samples_flag=True)
 
 X_train = dataset_dvectors[0]
 y_train = dataset_dvectors[1]
@@ -60,12 +54,15 @@ X_train = X_train.cpu().numpy()
 Mixed_X_data = X_train
 Mixed_y_labels = y_train
 
+# t-sne perplexity 
+c_options = [5, 10, 15, 20, 30, 40, 50]
 
-X_data_and_labels = [Mixed_X_data, Mixed_y_labels]
-with open(f'tsneGrid_{dataset_type}_noise{noise_type}.pickle', "wb") as file:
-    pickle.dump(X_data_and_labels, file)
+# t-sne n_iter
+d_options = [500, 800, 1200, 5000]
 
-run_id = f'{dataset_type}_{noise_type}'
+dataset_type = 'tsneGridCV_Exp001B'
+
+run_id = f'{dataset_type}'
 
 ### -------------------------------- from pickle file -----------------------
 for_idx = 0
@@ -79,9 +76,6 @@ for c, d in product(c_options, d_options):
     tsne_param_list.append({'per': c, 'n':d})
 
     tot_start = time.time()
-    with open(f'tsneGrid_{dataset_type}_noise{noise_type}.pickle', "rb") as file:
-        X_data_and_labels = pickle.load(file)
-    Mixed_X_data, Mixed_y_labels = X_data_and_labels
 
     current_df = gen_tsne(Mixed_X_data, Mixed_y_labels,
                           perplexity_val = perplexity_val,
@@ -93,7 +87,7 @@ for c, d in product(c_options, d_options):
 ### -------------------------------------------- Plot 8 figures ----------------
 # Save output of tsne for future ref:
 
-output_folder_path = Path(test_feat_dir).parent.joinpath(f'{run_id}')
+output_folder_path = output_folder_base.joinpath(f'{run_id}')
 output_folder_path.mkdir(parents=True, exist_ok=True)
 
 
