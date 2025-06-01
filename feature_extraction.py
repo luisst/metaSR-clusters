@@ -37,8 +37,17 @@ def extract_MFB_aolme(current_input_path, output_feats_folder):
 
     curent_output_path = output_feats_folder / (current_input_path.stem + '.pkl')
 
-    ## TO-DO: Save only features, no label
-    feat_and_label = {'feat':total_features, 'label':0}
+    # Verify curent_input_path has 3 substrings separated by '_'
+    current_label = 0
+    if len(current_input_path.stem.split('_')) == 3:
+        current_label = current_input_path.stem.split('_')[-2]
+    else:
+        current_label = 99
+    
+    print(f'current_label: {current_label}')
+        
+    
+    feat_and_label = {'feat':total_features, 'label':current_label}
 
     with open(curent_output_path, 'wb') as fp:
         pickle.dump(feat_and_label, fp)
@@ -50,9 +59,12 @@ def normalize_frames(m,Scale=False):
     else:
         return (m - np.mean(m, axis=0))
 
+root_dir = Path.home().joinpath('Dropbox','DATASETS_AUDIO')
+input_wavs_folder_ex = root_dir / 'Dvectors/wavs_test_pairs/input_wavs' 
+output_feats_folder_ex = root_dir / 'Dvectors/wavs_test_pairs/input_feats'
 
-input_wavs_folder_ex = Path('data/processed_data/')
-output_feats_folder_ex = Path('data/processed_data/feats/')
+if not output_feats_folder_ex.exists():
+    os.makedirs(output_feats_folder_ex)
 
 parser = argparse.ArgumentParser()
 

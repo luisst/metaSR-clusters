@@ -8,7 +8,7 @@ import numpy as np
 import math
 
 class background_resnet(nn.Module):
-    def __init__(self, num_classes, backbone='resnet34', pretrained_path=None):
+    def __init__(self, num_classes, backbone='resnet34'):
         super(background_resnet, self).__init__()
         self.backbone = backbone
         # copying modules from pretrained models
@@ -33,15 +33,8 @@ class background_resnet(nn.Module):
 
         self.relu = nn.ReLU()
 
-    #     # Load pre-trained weights if provided
-    #     if pretrained_path:
-    #         self.load_pretrained_weights(pretrained_path)
-
-    # def load_pretrained_weights(self, pretrained_path):
-    #     checkpoint = torch.load(pretrained_path)
-    #     self.load_state_dict(checkpoint, strict=False)  # Load weights, ignore size mismatch for `self.weight`
-
     def forward(self, x):
+        # input x: minibatch x 1 x 40 x 40
         x = self.pretrained.conv1(x)
         x = self.pretrained.bn1(x)
         x = self.pretrained.relu(x)
@@ -50,7 +43,6 @@ class background_resnet(nn.Module):
         x = self.pretrained.layer2(x)
         x = self.pretrained.layer3(x)
         x = self.pretrained.layer4(x) #[batch, 256, *, *]
-
 
         # Global Average Pooling
         x = x.flatten(start_dim=2)

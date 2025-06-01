@@ -1,5 +1,6 @@
 from pathlib import Path
 import shutil
+import pprint
 
 
 def find_connected_nodes(node, graph, visited=None):
@@ -47,7 +48,10 @@ def get_groups_alt(my_nodes_dict, verbose = False):
     return my_groups
 
 
-def copy_arrays_to_folder(arrays, indices, folder_path):
+def copy_arrays_to_folder(arrays, indices, probs_dict, folder_path, verbose=False):
+    """
+    Copy a list of arrays to a folder, renaming them with the corresponding probability.
+    """
 
     # Create the subfolder using pathlib
     folder_path.mkdir(parents=True, exist_ok=True)
@@ -55,15 +59,72 @@ def copy_arrays_to_folder(arrays, indices, folder_path):
     # Loop over the indices and copy each WAV file
     for idx in indices:
         if idx < len(arrays):
+
+            current_prob = probs_dict[idx]
+
             file_path = arrays[idx]
-            new_filename = Path(file_path).stem + '_9.99.' + Path(file_path).suffix
+            new_filename = Path(file_path).stem + f'_{current_prob:.2f}' + Path(file_path).suffix
 
             destination_path = folder_path / new_filename
 
             shutil.copy(file_path, destination_path)
-            print(f"{folder_path.name}: Copied {new_filename}")
+            if verbose:
+                print(f"{folder_path.name}: Copied {new_filename}")
         else:
-            print(f"\t{folder_path.name}: Index {idx} is out of range.")
+            print(f"!!!!! \t{folder_path.name}: Index {idx} is out of range.")
 
 
+def merge_and_validate_dicts(index_dict, prob_dict):
+    """
+    Merge two dictionaries where values are lists of indices and probabilities.
+    Validates that repeated indices have consistent probability values.
+    
+    Args:
+        index_dict (dict): Dictionary with elements as keys and lists of indices as values
+        prob_dict (dict): Dictionary with elements as keys and lists of probabilities as values
+        
+    Returns:
+        dict: Merged dictionary with indices as keys and probabilities as values
+    """
+    # Validate input dictionaries have the same keys
+    if set(index_dict.keys()) != set(prob_dict.keys()):
+        raise ValueError("Input dictionaries must have the same keys")
+    
+    # Validate that for each key, the lists have the same length
+    for key in index_dict:
+        if len(index_dict[key]) != len(prob_dict[key]):
+            raise ValueError(
+                f"Lists for key '{key}' have different lengths: "
+                f"indices: {len(index_dict[key])}, probabilities: {len(prob_dict[key])}"
+            )
+    
+    
+    # Keep track of encountered indices for validation
+    index_prob_map = {}
+    prob_avg_dict = {}
+    
+    for element in index_dict:
+        indices = index_dict[element]
+        probs = prob_dict[element]
+        
+        # Process each index-probability pair
+        for idx, prob in zip(indices, probs):
+            # Check if we've seen this index before
+            if idx in index_prob_map:
+                # print(f"index {idx}: Found {prob} -> prev {index_prob_map[idx]}")
+                index_prob_map[idx].append(prob)
+            else:
+                index_prob_map[idx] = [prob]
+    
+    # # Pretty print the index_prob_map
+    # pprint.pprint(index_prob_map)
 
+    # Calculate the average probability for each index
+    for idx, probs in index_prob_map.items():
+        prob_avg = sum(probs) / len(probs)
+        prob_avg_dict[idx] = prob_avg
+        # print(f"Index {idx}: {probs} -> avg: {prob_avg}")
+
+                
+    
+    return prob_avg_dict

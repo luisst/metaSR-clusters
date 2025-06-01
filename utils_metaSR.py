@@ -12,17 +12,12 @@ from model.model import background_resnet
 
 
 def extract_label(filename, samples_flag=True):
-    # match = re.search(r'(?<=segment_\d\d\d_)[A-Za-z0-9]+(?=_\d+\.\w\w\w)|(?<=group_background_)[A-Za-z0-9]+(?=_\d+\.\w\w\w)', filename)
 
     if samples_flag:
         return '0'
 
-    match = re.search(r'[a-zA-Z0-9]+?(?=_\d+\.\w\w\w)', filename)
-
-    if match:
-        return match.group()
-    else:
-        return 'sample'
+    speaker_id = filename.stem.split('_')[-2]  # Extract speaker ID from filename
+    return speaker_id
 
 
 def get_DB_aolme(feat_dir):

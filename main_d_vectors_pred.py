@@ -26,9 +26,9 @@ def valid_path(path):
     else:
         raise argparse.ArgumentTypeError(f"readable_dir:{path} is not a valid path")
 
-wavs_folder_ex = Path('')
-mfcc_folder_ex = Path('')
-feats_pickle_ex = Path('feats_files.pkl')
+wavs_folder_ex = Path('/home/luis/Dropbox/DATASETS_AUDIO/Proposal_runs/TestAO-Irmadb/STG_2/STG2_EXP010C-SHAS-DV/wav_chunks')
+mfcc_folder_ex = Path('/home/luis/Dropbox/DATASETS_AUDIO/Proposal_runs/TestAO-Irmadb/STG_2/STG2_EXP010C-SHAS-DV/MFCC_files')
+feats_pickle_ex = Path('example_feats_files')
 
 parser = argparse.ArgumentParser()
 
@@ -73,5 +73,5 @@ Mixed_X_data = X_train
 Mixed_y_labels = y_train
 
 X_data_and_labels = [X_train, X_train_paths, y_train]
-with open(f'{feats_pickle_path}.pickle', "wb") as file:
+with open(f'{feats_pickle_path}', "wb") as file:
     pickle.dump(X_data_and_labels, file)

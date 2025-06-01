@@ -7,11 +7,11 @@ import torchvision.transforms as transforms
 from generator.SR_Dataset import ToTensorInput
 import configure as c
 
-class metaGenerator(object):
+class metaGenerator_test(object):
 
     def __init__(self, test_DB, file_loader, enroll_length, test_length,
                  nb_classes=100, n_support=1, n_query=2, max_iter=100, xp=np):
-        super(metaGenerator, self).__init__()
+        super(metaGenerator_test, self).__init__()
 
         self.nb_classes = nb_classes
         self.n_support = n_support
@@ -78,17 +78,24 @@ class metaGenerator(object):
     def sample(self, nb_classes, nb_samples_per_class):
 
         picture_list = sorted(set(self.test_data.keys()))
-        sample_classes = random.sample(self.test_data.keys(), nb_classes)
+        sample_classes = random.sample(list(self.test_data.keys()), nb_classes)
         labels_and_images = []
+        # print(f'Sampling {nb_classes} classes with {nb_samples_per_class} samples each.')
         for (k, char) in enumerate(sample_classes):
             label = picture_list[char]
             # support(Enroll data) / query(Test data)
             data = self.test_data[char]
+            # print(f'\tClass {k+1}/{nb_classes}. label:{label} with {len(data)} samples.')
             _ind = random.sample(range(len(data)), nb_samples_per_class)
             # sample support
-            labels_and_images.extend([(label, self.transform(self.cut_frames(self.file_loader(data[i]), mode='enroll'))) for i in _ind[:self.n_support]])
+            current_sample_list = []
+            for i in _ind[:self.n_support]:
+                single_data_loaded = self.file_loader(data[i])[0]
+                frames_cut_loaded = self.cut_frames(single_data_loaded, mode='enroll')
+                current_sample_list.append((label, self.transform(frames_cut_loaded)))
+            labels_and_images.extend(current_sample_list)
             # sample query
-            labels_and_images.extend([(label, self.transform(self.cut_frames(self.file_loader(data[i]), mode='test'))) for i in _ind[self.n_support:]])
+            labels_and_images.extend([(label, self.transform(self.cut_frames(self.file_loader(data[i])[0], mode='test'))) for i in _ind[self.n_support:]])
 
         arg_labels_and_images = []
         for i in range(self.nb_samples_per_class):

@@ -22,10 +22,27 @@ class metaGenerator(object):
             ToTensorInput()  # torch tensor:(1, n_dims, n_frames)
         ])
 
-    def _load_data(self, data_DB):
-        nb_speaker = len(set(data_DB['labels']))
 
-        return {key: np.array(data_DB.loc[data_DB['labels']==key]['filename']) for key in range(nb_speaker)}
+    def _load_data(self, data_DB):
+        # Filter groups with sufficient samples
+        filtered_data = data_DB.groupby('labels').filter(lambda x: len(x) >= self.nb_samples_per_class)
+        
+        # Assign keys to a consecutive range of integers
+        data_dict = {
+            idx: group['filename'].values
+            for idx, (label, group) in enumerate(filtered_data.groupby('labels'))
+        }
+        
+        return data_dict
+
+# def _load_data(self, data_DB):
+#     # Group filenames by labels and filter groups with sufficient samples
+#     data_dict = {
+#         label: group['filename'].values
+#         for label, group in data_DB.groupby('labels')
+#         if len(group) >= self.nb_samples_per_class
+#     }
+#     return data_dict
 
     def __iter__(self):
         return self
@@ -45,7 +62,7 @@ class metaGenerator(object):
     def sample(self, nb_classes, nb_samples_per_class):
 
         picture_list = sorted(set(self.data.keys()))
-        sampled_characters = random.sample(self.data.keys(), nb_classes)
+        sampled_characters = random.sample(list(self.data.keys()), nb_classes)
         labels_and_images = []
         for (k, char) in enumerate(sampled_characters):
             label = picture_list[char]

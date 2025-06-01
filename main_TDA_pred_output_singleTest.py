@@ -1,26 +1,32 @@
 from __future__ import print_function
 import os
+import time
 import warnings
 import time
 import re
+import constants
 from pathlib import Path
-import pprint
 
-# import pathlib
-# temp = pathlib.PosixPath
-# pathlib.PosixPath = pathlib.WindowsPath
+import pathlib
+temp = pathlib.PosixPath
+pathlib.PosixPath = pathlib.WindowsPath
 
 import sklearn
 
 import matplotlib.pyplot as plt
+# import kmapper as km
 import warnings
 import pickle
 from sklearn.preprocessing import StandardScaler
 import hdbscan
 import argparse
 import sys
+import pprint
 
-import umap
+
+# # Get the parent directory and add it to sys.path
+# parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+# sys.path.insert(0, parent_dir)
 
 # Now you can import the module as usual
 import km_luis.kmapper as km
@@ -28,7 +34,7 @@ import km_luis.kmapper as km
 
 warnings.filterwarnings('ignore', category=FutureWarning)
 from utils_tda import find_connected_nodes, get_groups_alt,\
-     copy_arrays_to_folder, merge_and_validate_dicts, calculate_X_centroids
+     copy_arrays_to_folder, merge_and_validate_dicts
 
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 
@@ -39,8 +45,8 @@ pca_elem = 16
 min_cluster_size=5
 hdb_mode = 'leaf'
 
-n_cubes_ex = 10
-p_overlap_ex = 0.5
+n_cubes = 20
+perc_overlap = 0.4
 
 perplexity_val = 15 
 n_iter = 900
@@ -53,15 +59,14 @@ def valid_path(path):
     else:
         raise argparse.ArgumentTypeError(f"readable_dir:{path} is not a valid path")
 
-root_ex = Path.home().joinpath('Dropbox','DATASETS_AUDIO', 'Proposal_runs','TestAO-Irmadb')
+root_ex = Path.home().joinpath('Dropbox','DATASETS_AUDIO', 'Proposal_runs','TestAO-Irma')
 
-feats_pickle_ex = root_ex / Path('STG_2/STG2_EXP010-SHAS-DV/TestAO-Irmadb_SHAS_DV_feats.pkl')
-# feats_pickle_ex = root_ex.joinpath('STG_2','STG2_EXP007-SHAS-DVn1','TestAO-Irma_SHAS_DVn1_feats.pkl.pickle')
+# feats_pickle_ex = root_ex / Path('STG_2/STG2_EXP007-SHAS-DVn1/TestAO-Irma_SHAS_DVn1_feats.pkl.pickle')
+
+feats_pickle_ex = root_ex.joinpath('STG_2','STG2_EXP007-SHAS-DVn1','TestAO-Irma_SHAS_DVn1_feats.pkl.pickle')
 output_folder_path_ex = root_ex / Path('STG_3/Km_irma_test')
 
-# run_params_ex = 'pca16_mcs5_ms5_leaf'
-run_params_ex = 'pca16_mcs12_ms5_eom'
-
+run_params_ex = 'pca16_mcs5_ms5_leaf'
 exp_name_ex = 'TestAO-IrmaKM_SHAS_DV_feats'
 
 nodes_th_ex = 1
@@ -69,24 +74,20 @@ nodes_th_ex = 1
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--input_feats_pickle', default=feats_pickle_ex, help='Path to the folder to store the D-vectors features')
+parser.add_argument('--input_feats_pickle', type=valid_path, default=feats_pickle_ex, help='Path to the folder to store the D-vectors features')
 parser.add_argument('--output_pred_folder', type=valid_path, default=output_folder_path_ex, help='Path to the folder to store the predictions')
 parser.add_argument('--run_params', default=run_params_ex, help='string with the HDB-SCAN run name')
 parser.add_argument('--exp_name', default=exp_name_ex, help='string with the experiment name')
 parser.add_argument('--nodes_th', type=int, default=nodes_th_ex, help='Threshold for the number of nodes in a connected component')
-parser.add_argument('--km_cubes', type=int, default=n_cubes_ex, help='Number of cubes in the cover')
-parser.add_argument('--km_overlap', type=float, default=p_overlap_ex, help='Overlap percentage in the cover')
 # parser.add_argument('TDA_params', help='string with the Keppler mapper name')
 
 args = parser.parse_args()
 
-feats_pickle_path = Path(args.input_feats_pickle)
-output_folder_path = Path(args.output_pred_folder)
+# feats_pickle_path = Path(args.input_feats_pickle)
+# output_folder_path = Path(args.output_pred_folder)
 
-# feats_pickle_path = feats_pickle_ex
-# output_folder_path = output_folder_path_ex
-
-n_cubes, perc_overlap   = args.km_cubes, args.km_overlap
+feats_pickle_path = feats_pickle_ex 
+output_folder_path = output_folder_path_ex
 
 run_params = args.run_params
 Exp_name = args.exp_name
@@ -94,7 +95,8 @@ Exp_name = args.exp_name
 nodes_th = int(args.nodes_th)
 
 
-with open(f'{feats_pickle_path}.pickle', "rb") as file:
+print(f'feats_pickle_path: {feats_pickle_path} | type: {type(feats_pickle_path)}')
+with open(f'{feats_pickle_path}', "rb") as file:
     X_data_and_labels = pickle.load(file)
 X_train, X_train_paths, y_train = X_data_and_labels
 
@@ -122,7 +124,7 @@ print(f"hdb_mode: {hdb_mode}")
 
 
 run_id = f'{Exp_name}_TDA'
-verbose =  False
+verbose =  True
 
 data_standardized = StandardScaler().fit_transform(X_train)
 
@@ -130,45 +132,17 @@ data_standardized = StandardScaler().fit_transform(X_train)
 mapper = km.KeplerMapper(verbose=2)
 
 ##Fit and transform data
-# projected_data = mapper.fit_transform(X_train,
-#                                       projection=[sklearn.decomposition.PCA(n_components=pca_elem),
-#                                                 sklearn.manifold.TSNE(n_components=2,
-#                                                                       verbose=False,
-#                                                                       perplexity=perplexity_val,
-#                                                                       n_iter=n_iter)])
-
-umap_N_neighs = 15
-umap_min_dist = 0.1
-umap_N_comp = 1
-umap_metric = 'cosine'
-
-
 projected_data = mapper.fit_transform(X_train,
-                                      projection=umap.UMAP(n_neighbors=umap_N_neighs,  
-                                        min_dist=umap_min_dist,
-                                        n_components=umap_N_comp, 
-                                        metric=umap_metric),
-                                      scaler=StandardScaler())
-
-hdb_data_input = None
-n_components = 15
-data_standardized = StandardScaler().fit_transform(X_train)
-
-# Apply UMAP
-umap_reducer = umap.UMAP(
-    n_neighbors=5,  # Adjust based on dataset size
-    min_dist=0.1,    # Controls compactness of clusters
-    n_components=n_components,  # Reduced dimensionality
-    metric='cosine',  # Good default for many feature types
-)
-hdb_data_input = umap_reducer.fit_transform(data_standardized)
+                                      projection=[sklearn.decomposition.PCA(n_components=pca_elem),
+                                                sklearn.manifold.TSNE(n_components=2,
+                                                                      verbose=False,
+                                                                      perplexity=perplexity_val,
+                                                                      n_iter=n_iter)])
 
 # Create the graph (we cluster on the projected data and suffer projection loss)
 graph, nodes_probs = mapper.map(
                     projected_data,
-                    X=hdb_data_input,
                     clusterer=hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,\
-                                        min_samples=min_samples,\
                                         cluster_selection_method = hdb_mode),
                     cover=km.Cover(n_cubes, perc_overlap),
                     )
@@ -196,90 +170,65 @@ print(f'nodes_th: {nodes_th}')
 
 my_representative_nodes = get_groups_alt(my_nodes_dict)
 lbl_idx = 0
-single_nodes_list = []
-multiple_nodes_list = []
-nodes_stats_dict = {}
 
 if len(my_representative_nodes) == 0:
+    # sys.exit("Empty 'my_representative_nodes' dictionary. Exiting program. \n Parameters produced no nodes")
     print(f' >>>>>>>>>>>>>>>>>>>>>>> Empty my_representative_nodes dictionary. \n Parameters produced no connected components')
-    sys.exit("Empty 'my_representative_nodes' dictionary. Exiting program. \n Parameters produced no nodes")
 else:
     print(f'len(my_representative_nodes): {len(my_representative_nodes)}')
     for current_unique_name, current_group_len in my_representative_nodes:
 
         connected_nodes = find_connected_nodes(current_unique_name, my_nodes_dict)
-        # print(f'\n\nConnected nodes {connected_nodes} \t current_group_len: {current_group_len} \n current_unique_name: {current_unique_name}')
+        print(f'\n\nConnected nodes {connected_nodes} \t current_group_len: {current_group_len} \n current_unique_name: {current_unique_name}')
 
-        multiple_nodes_list.extend(connected_nodes)
+        my_nodes_list = [node for node in my_nodes_list if node not in connected_nodes]
 
-        # Verify the single nodes to the list
-        if current_group_len == 1:
-            print(f'>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> found single node {current_unique_name}')
-            continue
+        # if len(connected_nodes) != current_group_len:
+        #     print(f'\t\tfrom groups:{current_group_len}\t len: {len(connected_nodes)}')
 
         # Skip the nodes that are connected to less than 4 nodes
         if current_group_len < nodes_th:
             print(f'\n\nSkipping node {current_unique_name} - lbl: {lbl_idx}')
             continue
 
-        # print(f'\n\nProcessing node {current_unique_name} - lbl: {lbl_idx}')
-        # print(f'len: {current_group_len} - connected nodes: {len(connected_nodes)}')
+        print(f'\n\nProcessing node {current_unique_name} - lbl: {lbl_idx}')
+        print(f'len: {current_group_len} - connected nodes: {len(connected_nodes)}')
 
         my_unique_nodes = []
         for idx in connected_nodes:
             my_unique_nodes.extend(graph['nodes'][idx])
 
+        # print(f'Extended list {my_unique_nodes}')
         # Remove duplicates
         my_unique_nodes = list(set(my_unique_nodes))
 
         # print(f'Unique list {my_unique_nodes}')
 
+        print(f'\n\nProcessing node {current_unique_name} - lbl: {lbl_idx}')
+
         folder_path = output_folder_path.joinpath(str(lbl_idx))
         lbl_idx += 1
-
-        # Store the number of nodes in the connected component and the total number of elements in each node
-        nodes_stats_dict[lbl_idx] = (current_group_len, len(my_unique_nodes))
 
         #Store the wavs from a given indexs
         copy_arrays_to_folder(X_train_paths, my_unique_nodes, probs_dict, folder_path)
 
-print(f'\n\n\tNumber of Connected Components: {lbl_idx}')
-pprint.pprint(nodes_stats_dict)
-
-
-# Print if there is repeated nodes in multiple_nodes_list
-if len(multiple_nodes_list) != len(set(multiple_nodes_list)):
-    print(f'>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Repeated nodes in multiple_nodes_list')
-
-# Generate the single nodes list from the difference between my_nodes_list and multiple_nodes_list
-single_nodes_list = [node for node in my_nodes_list if node not in multiple_nodes_list]
-
-
-single_node_stats_dict = {}
+print(f'\n\n\tNumber of Connected Components: {lbl_idx -1}')
 
 # Process the single nodes only if threshold is 1
 if nodes_th == 1: 
-    print(f'\n\n-------------------------------------------------')
-    print(f'\tProcessing single nodes {len(single_nodes_list)}\n')
-    for single_node in single_nodes_list:
-        # print(f'\nProcessing single node {single_node} - lbl: {lbl_idx}')
+    print(f'\tProcessing single nodes {len(my_nodes_list)}\n\n')
+    for single_node in my_nodes_list:
+        print(f'\n\nProcessing single node {single_node} - lbl: {lbl_idx}')
 
         folder_path = output_folder_path.joinpath(str(lbl_idx))
         lbl_idx += 1
 
         samples_list = graph['nodes'][single_node]
 
-        #Store the number of nodes in the connected component and the total number of elements in each node
-        single_node_stats_dict[lbl_idx] = (1, len(samples_list))
-
         #Store the wavs from a given indexs
-        copy_arrays_to_folder(X_train_paths, samples_list, probs_dict, folder_path)
-
-
+        copy_arrays_to_folder(X_train_paths, samples_list, folder_path)
 elif nodes_th == 0:
     sys.exit("Invalid nodes_th value. Exiting program. \n Parameters produced no nodes")
-
-pprint.pprint(single_node_stats_dict)
 
 # Define the path to save the chart
 current_fig_path = output_folder_path.joinpath(f'{run_id}_chart.png')

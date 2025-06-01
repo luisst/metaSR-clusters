@@ -15,6 +15,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import pandas as pd
+from collections import defaultdict
+
 
 import matplotlib.lines as mlines
 
@@ -411,7 +413,7 @@ def d_vector_dict_lbls(list_of_feats, model,
     with torch.no_grad():
         for path_idx, current_feat_path in enumerate(list_of_feats):
             enroll_embedding, _ = get_d_vector_aolme(current_feat_path, model, norm_flag=norm_flag)
-            speakerID_clusters = extract_label(current_feat_path.name, samples_flag=samples_flag)
+            speakerID_clusters = extract_label(current_feat_path, samples_flag=samples_flag)
 
             # Get the current wav path
             current_wav_path = list_of_wavs[path_idx]
@@ -435,7 +437,7 @@ def d_vectors_pretrained_model(feats_folder, percentage_test, remove_outliers,
 
     list_of_feats = sorted(list(feats_folder.glob('*.pkl')))
     list_of_wavs = sorted(list(wavs_paths.glob('*.wav')))
-    n_classes = 5994 # from trained with vox1
+    n_classes = 5994 # from trained with vox2
     cp_num = 100
 
     log_dir = 'saved_model/baseline_000'
@@ -734,9 +736,9 @@ def plot_clustering_dual(x_tsne_2d, Mixed_y_labels,
     if plot_mode == 'show':
         plt.show()
     elif plot_mode == 'store':
-        combined_fig.savefig(current_fig_path, dpi=300, overwrite=True)
+        combined_fig.savefig(current_fig_path, dpi=300)
     elif plot_mode == 'show_store':
-        combined_fig.savefig(current_fig_path, dpi=300, overwrite=True)
+        combined_fig.savefig(current_fig_path, dpi=300)
         plt.show()
     else:
         print(f'Error! plot_histogam plot_mode')
@@ -1080,3 +1082,29 @@ def find_key_of_longest_list(input_dict):
             key_of_longest_list = key
 
     return key_of_longest_list, max_length
+
+
+def calculate_X_centroids(X_train, y_labels):
+    """
+    Calculates the centroids for each unique label in y_labels.
+    
+    Parameters:
+    X_train (list of lists): Feature vectors.
+    y_labels (list): Corresponding labels for each feature vector.
+    
+    Returns:
+    dict: A dictionary where keys are labels and values are centroids (numpy arrays).
+    """
+    if len(X_train) != len(y_labels):
+        raise ValueError("X_train and y_labels must have the same length.")
+    
+    # Initialize a dictionary to collect feature vectors for each label
+    label_features = defaultdict(list)
+    
+    for features, label in zip(X_train, y_labels):
+        label_features[label].append(features)
+    
+    # Calculate centroids
+    centroids = {label: np.mean(features, axis=0) for label, features in label_features.items()}
+    
+    return centroids
