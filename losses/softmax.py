@@ -16,7 +16,8 @@ class SoftmaxLoss(nn.Module):
         label = label.cuda(non_blocking=True)
 
         inputs = model(inputs)
-        logit = F.linear(inputs, F.normalize(model.weight))
+        # logit = F.linear(inputs, F.normalize(model.weight))
+        logit = F.linear(inputs, F.normalize(model.fc_final.weight), model.fc_final.bias)
         loss = self.criterion(logit, label)
         acc = self.accuracy(logit, label)
 

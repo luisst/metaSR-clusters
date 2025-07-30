@@ -25,15 +25,13 @@ class SpecAugment(nn.Module):
     """
     
     def __init__(self, freq_mask_param=27, time_mask_param=100, 
-                 num_freq_masks=1, num_time_masks=1, p=0.8, 
-                 time_warp_param=0, mask_value=0.0, batch_ratio=1.0):
+                 num_freq_masks=1, num_time_masks=1,
+                 mask_value=0.0, batch_ratio=1.0):
         super(SpecAugment, self).__init__()
         self.freq_mask_param = freq_mask_param
         self.time_mask_param = time_mask_param
         self.num_freq_masks = num_freq_masks
         self.num_time_masks = num_time_masks
-        self.p = p
-        self.time_warp_param = time_warp_param
         self.mask_value = mask_value
         self.batch_ratio = batch_ratio  # Percentage of batch to augment
         
@@ -51,42 +49,40 @@ class SpecAugment(nn.Module):
         if not self.training:
             return x
             
-        if random.random() > self.p:
-            return x
-            
         # (batch_size, channels, freq_bins, time_steps)
         batch_size, channels, freq_bins, time_steps = x.shape         
 
         # Apply augmentation to each sample in the batch
         augmented = x.clone()
         
-        # Randomly select which samples in the batch to augment
-        num_samples_to_augment = int(batch_size * self.batch_ratio)
-        if num_samples_to_augment > 0:
-            # Randomly select indices
-            selected_indices = random.sample(range(batch_size), num_samples_to_augment)
-        else:
-            selected_indices = []
+        # # Randomly select which samples in the batch to augment
+        # num_samples_to_augment = int(batch_size * self.batch_ratio)
+        # if num_samples_to_augment > 0:
+        #     # Randomly select indices
+        #     selected_indices = random.sample(range(batch_size), num_samples_to_augment)
+        # else:
+        #     selected_indices = []
+        
+        # For debugging purposes, select all indices
+        selected_indices = list(range(batch_size))
 
         print(f"Selected {len(selected_indices)} samples for augmentation out of {batch_size} total samples.")
 
         for i in selected_indices:
-            # # Check individual sample probability
-            # if random.random() > self.p:
-            #     continue
-                
             # Frequency masking
             for _ in range(self.num_freq_masks):
-                augmented[i, 0] = self._freq_mask(augmented[i, 0])
+                augmented[i, 0] = self._freq_mask(augmented[i, 0], idx=i)
             
             # Time masking
             for _ in range(self.num_time_masks):
-                augmented[i, 0] = self._time_mask(augmented[i, 0])
+                augmented[i, 0] = self._time_mask(augmented[i, 0], idx=i)
+            
+            print(f'----------\n')
         
 
         return augmented
     
-    def _freq_mask(self, spec):
+    def _freq_mask(self, spec, idx=0):
         """Apply frequency masking to a single spectrogram."""
         freq_bins, time_steps = spec.shape
         
@@ -97,6 +93,7 @@ class SpecAugment(nn.Module):
         mask_size = random.randint(0, min(self.freq_mask_param, freq_bins))
         
         if mask_size == 0:
+            print(f'{idx} - Skipping freq mask of size 0')
             return spec
         
         # Random mask position
@@ -107,11 +104,11 @@ class SpecAugment(nn.Module):
         masked_spec = spec.clone()
         masked_spec[mask_start:mask_end, :] = self.mask_value
 
-        print(f"Applying frequency mask: start={mask_start}, end={mask_end}, size={mask_size}")
+        print(f"\t{idx} - Applying frequency mask: start={mask_start}, end={mask_end}, size={mask_size}")
         
         return masked_spec
     
-    def _time_mask(self, spec):
+    def _time_mask(self, spec, idx=0):
         """Apply time masking to a single spectrogram."""
         freq_bins, time_steps = spec.shape
         
@@ -122,6 +119,7 @@ class SpecAugment(nn.Module):
         mask_size = random.randint(0, min(self.time_mask_param, time_steps))
         
         if mask_size == 0:
+            print(f'{idx} - Skipping time mask of size 0')
             return spec
         
         # Random mask position
@@ -132,15 +130,15 @@ class SpecAugment(nn.Module):
         masked_spec = spec.clone()
         masked_spec[:, mask_start:mask_end] = self.mask_value
 
-        print(f"Applying time mask: start={mask_start}, end={mask_end}, size={mask_size}")
+        print(f"\t{idx} - Applying time mask: start={mask_start}, end={mask_end}, size={mask_size}")
         
         return masked_spec
 
 
 # Standalone SpecAugment function for easy integration
 def apply_specaugment(spectrograms, freq_mask_param=5, time_mask_param=40,
-                     num_freq_masks=2, num_time_masks=2, p=0.8, 
-                     time_warp_param=0, mask_value=0.0, batch_ratio=1.0):
+                     num_freq_masks=2, num_time_masks=2,
+                    mask_value=0.0, batch_ratio=1.0):
     """
     Standalone function to apply SpecAugment to spectrograms.
     
@@ -157,8 +155,6 @@ def apply_specaugment(spectrograms, freq_mask_param=5, time_mask_param=40,
         time_mask_param=time_mask_param,
         num_freq_masks=num_freq_masks,
         num_time_masks=num_time_masks,
-        p=p,
-        time_warp_param=time_warp_param,
         mask_value=mask_value,
         batch_ratio=batch_ratio
     )
@@ -228,81 +224,6 @@ def plot_specaugment_comparison(original, augmented, sample_idx=0, channel_idx=0
     aug_percentage = (augmented_pixels / total_pixels) * 100
     print(f"Percentage of pixels modified: {aug_percentage:.2f}%")
 
-
-def visualize_batch_augmentation(spectrograms, specaugment_params=None, num_samples=4):
-    """
-    Visualize SpecAugment effects on multiple samples from a batch.
-    
-    Args:
-        spectrograms (torch.Tensor): Batch of spectrograms
-        specaugment_params (dict): SpecAugment parameters (optional)
-        num_samples (int): Number of samples to visualize
-    """
-    if specaugment_params is None:
-        specaugment_params = {
-            'freq_mask_param': 27,
-            'time_mask_param': 100,
-            'batch_ratio': 0.8,  # Augment 80% of batch
-            'p': 0.9  # High probability to see effects
-        }
-    
-    # Apply SpecAugment
-    augmented = apply_specaugment(spectrograms, **specaugment_params)
-    
-    # Plot comparisons for multiple samples
-    batch_size = min(spectrograms.size(0), num_samples)
-    
-    for i in range(batch_size):
-        print(f"\n--- Sample {i} ---")
-        plot_specaugment_comparison(spectrograms, augmented, sample_idx=i, 
-                                  title_prefix=f"Mel Spectrogram {i}")
-
-
-# Example usage with visualization
-def demo_specaugment_with_plots():
-    """
-    Demonstration function showing SpecAugment with visualizations.
-    """
-    print("=== SpecAugment Demo with Visualizations ===\n")
-    
-    # Create sample mel spectrogram batch
-    batch_size = 4
-    freq_bins = 128
-    time_steps = 200
-    
-    # Generate realistic-looking mel spectrograms
-    torch.manual_seed(42)  # For reproducible demo
-    spectrograms = torch.abs(torch.randn(batch_size, freq_bins, time_steps)) * 2
-    
-    # Add some structure to make it look more like real spectrograms
-    for i in range(batch_size):
-        # Add frequency bands
-        spectrograms[i, 20:40, :] += 1.5
-        spectrograms[i, 60:80, :] += 1.0
-        # Add time-varying components
-        spectrograms[i, :, 50:150] += 0.8
-    
-    print(f"Created batch of spectrograms: {spectrograms.shape}")
-    
-    # Test 1: Standard SpecAugment on full batch
-    print("\n1. Standard SpecAugment (100% of batch):")
-    specaugment_full = SpecAugment(batch_ratio=1.0, p=1.0)  # Augment all samples
-    specaugment_full.train()
-    augmented_full = specaugment_full(spectrograms)
-    plot_specaugment_comparison(spectrograms, augmented_full, sample_idx=0)
-    
-    # Test 2: Partial batch augmentation
-    print("\n2. Partial Batch SpecAugment (50% of batch):")
-    specaugment_partial = SpecAugment(batch_ratio=0.5, p=1.0)  # Augment 50% of batch
-    specaugment_partial.train()
-    augmented_partial = specaugment_partial(spectrograms)
-    
-    # Visualize multiple samples to see which were augmented
-    visualize_batch_augmentation(spectrograms, 
-                               {'batch_ratio': 0.5, 'p': 1.0, 'freq_mask_param': 30}, 
-                               num_samples=4)
-    
-    return spectrograms, augmented_full, augmented_partial
 
 
 # Example usage

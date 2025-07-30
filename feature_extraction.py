@@ -60,8 +60,8 @@ def normalize_frames(m,Scale=False):
         return (m - np.mean(m, axis=0))
 
 root_dir = Path.home().joinpath('Dropbox','DATASETS_AUDIO')
-input_wavs_folder_ex = root_dir / 'Dvectors/wavs_test_pairs/input_wavs' 
-output_feats_folder_ex = root_dir / 'Dvectors/wavs_test_pairs/input_feats'
+input_wavs_folder_ex = root_dir / 'Dvectors/wavs_test_pairs/aolme_fix_input_wavs/simplified_audio_files' 
+output_feats_folder_ex = root_dir / 'Dvectors/wavs_test_pairs/aolme_fix_feats'
 
 if not output_feats_folder_ex.exists():
     os.makedirs(output_feats_folder_ex)

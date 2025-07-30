@@ -26,9 +26,10 @@ def valid_path(path):
     else:
         raise argparse.ArgumentTypeError(f"readable_dir:{path} is not a valid path")
 
-wavs_folder_ex = Path('/home/luis/Dropbox/DATASETS_AUDIO/Proposal_runs/TestAO-Irmadb/STG_2/STG2_EXP010C-SHAS-DV/wav_chunks')
-mfcc_folder_ex = Path('/home/luis/Dropbox/DATASETS_AUDIO/Proposal_runs/TestAO-Irmadb/STG_2/STG2_EXP010C-SHAS-DV/MFCC_files')
-feats_pickle_ex = Path('example_feats_files')
+root_ex = Path('/home/luis/Dropbox/DATASETS_AUDIO')
+wavs_folder_ex = root_ex / Path('Dvectors/noisy_all_18K/input_wavs')
+mfcc_folder_ex = root_ex / Path('Dvectors/noisy_all_18K/input_feats')
+feats_pickle_ex = mfcc_folder_ex.parent / Path('d_vectors_feats.pickle')
 
 parser = argparse.ArgumentParser()
 
@@ -37,6 +38,8 @@ parser.add_argument('--input_mfcc_folder', type=valid_path, default=mfcc_folder_
 parser.add_argument('--output_feats_pickle', default=feats_pickle_ex, help='Path to the folder to store the D-vectors features')
 
 args = parser.parse_args()
+
+#TODO: samples_flag is set to True by default for inferences
 
 wavs_folder = Path(args.wavs_folder)
 mfcc_folder_path = Path(args.input_mfcc_folder)
@@ -56,7 +59,7 @@ dataset_dvectors = d_vectors_pretrained_model(mfcc_folder_path, percentage_test,
                                             return_paths_flag = True,
                                             norm_flag = True,
                                             use_cuda=True,
-                                            samples_flag=True)
+                                            samples_flag=False)
 
 X_train = dataset_dvectors[0]
 y_train = dataset_dvectors[1]

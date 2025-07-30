@@ -37,7 +37,7 @@ def load_model(log_dir, cp_num, n_classes, use_cuda = True):
         model.cuda()
     print('=> loading checkpoint')
     # load pre-trained parameters
-    checkpoint = torch.load(log_dir + '/checkpoint_' + str(cp_num).zfill(3) + '.pth')
+    checkpoint = torch.load(log_dir + '/checkpoint_100_original.pth')
     model.load_state_dict(checkpoint['state_dict'])
     model.eval()
     return model

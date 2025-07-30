@@ -440,7 +440,7 @@ def d_vectors_pretrained_model(feats_folder, percentage_test, remove_outliers,
     n_classes = 5994 # from trained with vox2
     cp_num = 100
 
-    log_dir = 'saved_model/baseline_000'
+    log_dir = 'saved_model'
     pwd_path = Path.cwd()
     print(f'Current working directory: {pwd_path}')
     
@@ -919,10 +919,11 @@ def plot_histograms(input_list_all, bin_mode = 'std_mode', bin_val=100,
         plt.show()
     elif plot_mode == 'store':
         current_fig_path = output_path.joinpath(f'{run_id}_{title_text}.png')
-        plt.savefig(current_fig_path, dpi=300, overwrite=True)
+        plt.savefig(current_fig_path, dpi=300)
+        # plt.savefig(current_fig_path, dpi=300, overwrite=True)
     elif plot_mode == 'show_store':
         current_fig_path = output_path.joinpath(f'{run_id}_{title_text}.png')
-        plt.savefig(current_fig_path, dpi=300, overwrite=True)
+        plt.savefig(current_fig_path, dpi=300)
         plt.show()
     else:
         print(f'Error! plot_histogam plot_mode')

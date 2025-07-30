@@ -33,13 +33,6 @@ class background_resnet(nn.Module):
 
         self.relu = nn.ReLU()
 
-    #     # Load pre-trained weights if provided
-    #     if pretrained_path:
-    #         self.load_pretrained_weights(pretrained_path)
-
-    # def load_pretrained_weights(self, pretrained_path):
-    #     checkpoint = torch.load(pretrained_path)
-    #     self.load_state_dict(checkpoint, strict=False)  # Load weights, ignore size mismatch for `self.weight`
 
     def forward(self, x):
         x = self.pretrained.conv1(x)

@@ -44,9 +44,9 @@ class metaGenerator_test(object):
     def next(self):
         if (self.max_iter is None) or (self.num_iter < self.max_iter):
             self.num_iter += 1
-            images, labels = self.sample(self.nb_classes, self.nb_samples_per_class)
+            images, labels, filenames = self.sample(self.nb_classes, self.nb_samples_per_class)
 
-            return (self.num_iter - 1), (images, labels)
+            return (self.num_iter - 1), (images, labels, filenames)
         else:
             raise StopIteration()
 
@@ -92,22 +92,33 @@ class metaGenerator_test(object):
             for i in _ind[:self.n_support]:
                 single_data_loaded = self.file_loader(data[i])[0]
                 frames_cut_loaded = self.cut_frames(single_data_loaded, mode='enroll')
-                current_sample_list.append((label, self.transform(frames_cut_loaded)))
+                current_filename = data[i].split('/')[-1]  # Extract filename from path
+                current_sample_list.append((label, self.transform(frames_cut_loaded), current_filename))
             labels_and_images.extend(current_sample_list)
             # sample query
-            labels_and_images.extend([(label, self.transform(self.cut_frames(self.file_loader(data[i])[0], mode='test'))) for i in _ind[self.n_support:]])
+            current_query_list = []
+            for i in _ind[self.n_support:]:
+                single_data_loaded = self.file_loader(data[i])[0]
+                frames_cut_loaded = self.cut_frames(single_data_loaded, mode='test')
+                current_filename = data[i].split('/')[-1]  # Extract filename from path
+                current_query_list.append((label, self.transform(frames_cut_loaded), current_filename))
+            labels_and_images.extend(current_query_list)
+
+            # labels_and_images.extend([(label, self.transform(self.cut_frames(self.file_loader(data[i])[0], mode='test'))) for i in _ind[self.n_support:]])
 
         arg_labels_and_images = []
         for i in range(self.nb_samples_per_class):
             for j in range(self.nb_classes):
-                arg_labels_and_images.extend([labels_and_images[i+j*self.nb_samples_per_class]])
+                arg_idx = i + j * self.nb_samples_per_class
+                arg_labels_and_images.extend([labels_and_images[arg_idx]])
+                # print(f'\rProcessing {arg_idx + 1}/{self.nb_samples_per_class * self.nb_classes} samples.')
 
-        labels, images = zip(*arg_labels_and_images)
+        labels, images, filenames = zip(*arg_labels_and_images)
 
         support = torch.stack(images[:self.n_support * self.nb_classes], dim=0)
         query = torch.stack(images[self.n_support*self.nb_classes:], dim=0)
 
         labels = torch.tensor(labels, dtype=torch.long)
 
-        return (support, query), labels
+        return (support, query), labels, filenames
 

@@ -7,6 +7,8 @@ from matplotlib.backend_bases import MouseEvent
 import numpy as np
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+
 
 
 def play_audio(file_path):
@@ -109,8 +111,64 @@ def filter_and_plot(selected_label, audio_files_paths, key_sample_coord, coordin
     plt.show()
 
 
-def define_key_sample_coordinates(selected_label, coordinates):
+def define_key_sample_coordinates(selected_label, coordinates, labels):
     """Define the key sample coordinates for the selected label."""
     key_sample_indices = [i for i, label in enumerate(labels) if label == selected_label]
     key_sample_coords = np.mean(coordinates[key_sample_indices], axis=0)
     return key_sample_coords
+
+
+def plot_distance_histograms(centroids, X_train, y_labels, output_path, run_id):
+    """
+    Plots and saves histograms of Euclidean distances from each element in X_train to its label centroid.
+    
+    Parameters:
+    centroids (dict): Dictionary where keys are labels and values are centroids (numpy arrays).
+    X_train (list of lists): Feature vectors.
+    y_labels (list): Corresponding labels for each feature vector.
+    output_path (str): Directory where the plots will be saved.
+    run_id (str): Identifier to include in the plot filenames.
+    """
+    if len(X_train) != len(y_labels):
+        raise ValueError("X_train and y_labels must have the same length.")
+    
+    # Ensure the output path exists
+    os.makedirs(output_path, exist_ok=True)
+    
+    # Compute distances
+    distances = []
+    unique_labels = sorted(centroids.keys())
+    
+    for label in unique_labels:
+        label_distances = [
+            np.linalg.norm(np.array(X_train[i]) - centroids[label]) 
+            for i in range(len(y_labels)) if y_labels[i] == label
+        ]
+        distances.append((label, label_distances))
+    
+    # Plot histograms and save figures
+    num_labels = len(unique_labels)
+    num_subplots = 4
+    num_figures = (num_labels + num_subplots - 1) // num_subplots  # Calculate the number of figures
+    
+    for fig_idx in range(num_figures):
+        fig, axes = plt.subplots(2, 2, figsize=(10, 8))
+        axes = axes.flatten()
+        for subplot_idx in range(num_subplots):
+            global_idx = fig_idx * num_subplots + subplot_idx
+            if global_idx < num_labels:
+                label, label_distances = distances[global_idx]
+                axes[subplot_idx].hist(label_distances, bins=20, alpha=0.7, color='blue', edgecolor='black')
+                axes[subplot_idx].set_title(f'Label {label}')
+                axes[subplot_idx].set_xlabel('Distance')
+                axes[subplot_idx].set_ylabel('Frequency')
+            else:
+                axes[subplot_idx].axis('off')  # Turn off unused subplots
+        
+        plt.tight_layout()
+        # Save the figure
+        figure_path = os.path.join(output_path, f"hist_{run_id}_{fig_idx + 1}.png")
+        plt.savefig(figure_path)
+        plt.close(fig)
+    
+    return distances

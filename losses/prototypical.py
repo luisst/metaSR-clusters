@@ -27,11 +27,16 @@ class Prototypical(nn.Module):
         acc_g = self.zero
         if use_GC:
             inputs = torch.cat((support, query), dim=0)
-            logit_g = F.linear(inputs, F.normalize(model.weight))
+            ### logit_g = F.linear(inputs, F.normalize(model.weight))
+            ### Get fc_final weights and bias with dropout applied during training
+            # fc_weight, fc_bias = model.get_fc_final_with_dropout()
+            # logit_g = F.linear(inputs, F.normalize(fc_weight), fc_bias)
+            logit_g = F.linear(inputs, F.normalize(model.fc_final.weight), model.fc_final.bias)
             loss_g = self.criterion(logit_g, label_g)
             acc_g = self.accuracy(logit_g, label_g)
 
-        loss = loss_e + loss_g
+        loss = 0.8*loss_e + 0.2*loss_g
+        # loss = loss_e + loss_g
 
         return loss, loss_e, loss_g, acc_e, acc_g
 

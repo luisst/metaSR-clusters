@@ -17,13 +17,12 @@ from sklearn.manifold import TSNE
 from mpl_toolkits.mplot3d import Axes3D
 
 import umap
-import matplotlib.pyplot as plt
 
 warnings.filterwarnings('ignore', category=FutureWarning)
 
 from utils_luis import gen_tsne, \
     store_probs, organize_samples_by_label,\
-    plot_histograms, calculate_X_centroids, \
+    plot_histograms,\
     run_pca, plot_clustering_dual, check_0_clusters
 
 
@@ -178,8 +177,7 @@ samples_outliers = hdb.outlier_scores_
 samples_prob = hdb.probabilities_
 samples_label = hdb.labels_
 
-with open(pred_lbl_pickle, 'wb') as handle:
-    pickle.dump(samples_label, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 if plot_hist_flag:
     plot_histograms(samples_outliers, bin_mode = 'std_mode', bin_val=100,
@@ -206,6 +204,9 @@ if plot_hist_flag:
 df_mixed = gen_tsne(Mixed_X_data, Mixed_y_labels)
 x_tsne_2d = np.array(list(zip(df_mixed['tsne-2d-one'], df_mixed['tsne-2d-two'])))
 
+with open(pred_lbl_pickle, 'wb') as handle:
+    pickle.dump(samples_label, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 # Store x_tsne_2d for later use
 with open(f'{output_folder_path}/{current_run_id}_xtsne2d.pickle', 'wb') as handle:
     pickle.dump(x_tsne_2d, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -215,82 +216,15 @@ with open(f'{output_folder_path}/{current_run_id}_Xpaths.pickle', 'wb') as handl
     pickle.dump(Mixed_X_paths, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
+info_pred = [samples_label, x_tsne_2d, Mixed_X_paths]
+# Store Mixed_X_paths and Mixed_y_labels on a similar way
+with open(f'{output_folder_path}/{current_run_id}_predinfo.pickle', 'wb') as handle:
+    pickle.dump(info_pred, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 plot_clustering_dual(x_tsne_2d, Mixed_y_labels,
                         samples_label, samples_prob,
                         current_run_id, output_folder_path,
                         plot_mode)
-
-
-# Divide the X_train data in a dictionary with the labels as keys
-centroids_dict = calculate_X_centroids(Mixed_X_data, samples_label)
-
-# Store the centroid_dict
-with open(f'{output_folder_path}/{current_run_id}_centroids-mean.pickle', 'wb') as handle:
-    pickle.dump(centroids_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-def plot_distance_histograms(centroids, X_train, y_labels, output_path, run_id):
-    """
-    Plots and saves histograms of Euclidean distances from each element in X_train to its label centroid.
-    
-    Parameters:
-    centroids (dict): Dictionary where keys are labels and values are centroids (numpy arrays).
-    X_train (list of lists): Feature vectors.
-    y_labels (list): Corresponding labels for each feature vector.
-    output_path (str): Directory where the plots will be saved.
-    run_id (str): Identifier to include in the plot filenames.
-    """
-    if len(X_train) != len(y_labels):
-        raise ValueError("X_train and y_labels must have the same length.")
-    
-    # Ensure the output path exists
-    os.makedirs(output_path, exist_ok=True)
-    
-    # Compute distances
-    distances = []
-    unique_labels = sorted(centroids.keys())
-    
-    for label in unique_labels:
-        label_distances = [
-            np.linalg.norm(np.array(X_train[i]) - centroids[label]) 
-            for i in range(len(y_labels)) if y_labels[i] == label
-        ]
-        distances.append((label, label_distances))
-    
-    # Plot histograms and save figures
-    num_labels = len(unique_labels)
-    num_subplots = 4
-    num_figures = (num_labels + num_subplots - 1) // num_subplots  # Calculate the number of figures
-    
-    for fig_idx in range(num_figures):
-        fig, axes = plt.subplots(2, 2, figsize=(10, 8))
-        axes = axes.flatten()
-        for subplot_idx in range(num_subplots):
-            global_idx = fig_idx * num_subplots + subplot_idx
-            if global_idx < num_labels:
-                label, label_distances = distances[global_idx]
-                axes[subplot_idx].hist(label_distances, bins=20, alpha=0.7, color='blue', edgecolor='black')
-                axes[subplot_idx].set_title(f'Label {label}')
-                axes[subplot_idx].set_xlabel('Distance')
-                axes[subplot_idx].set_ylabel('Frequency')
-            else:
-                axes[subplot_idx].axis('off')  # Turn off unused subplots
-        
-        plt.tight_layout()
-        # Save the figure
-        figure_path = os.path.join(output_path, f"hist_{run_id}_{fig_idx + 1}.png")
-        plt.savefig(figure_path)
-        plt.close(fig)
-    
-    return distances
-
-
-# lbl_distances = plot_distance_histograms(centroids_dict, Mixed_X_data, samples_label, output_folder_path, current_run_id)
-
-
-# # Store the centroid_dict
-# with open(f'{output_folder_path}/{current_run_id}_CM-dist.pickle', 'wb') as handle:
-#     pickle.dump(lbl_distances, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 organize_samples_by_label(Mixed_X_paths, samples_label, samples_prob, output_folder_path)
